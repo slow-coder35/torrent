@@ -54,8 +54,6 @@ std::pair<bencodevalue,int> parse_string(std::string& data,int pos){
     auto [n,x]=parse_int(data,pos,':');
     pos=x;
     bencodeint m = std::get<bencodeint>(n.value);
-    if(data[pos]!=':') throw std::runtime_error("invalid bencode ");
-    pos++;
     for(int i=0;i<m;i++){
         ret=ret+data[pos+i];
     }
