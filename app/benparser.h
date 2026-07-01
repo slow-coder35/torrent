@@ -28,7 +28,7 @@ struct bencodevalue{
 
 
 //PARSE An int 
-std::pair<bencodevalue,int> parse_int(std::string& data,int pos,char c)
+std::pair<bencodevalue,int> parse_int(const std::string& data,int pos,char c)
 {
     
     bencodeint number={0};
@@ -48,7 +48,7 @@ std::pair<bencodevalue,int> parse_int(std::string& data,int pos,char c)
 }
 
 
-std::pair<bencodevalue,int> parse_string(std::string& data,int pos){
+std::pair<bencodevalue,int> parse_string(const std::string& data,int pos){
     bencodestring ret{""};
     
     auto [n,x]=parse_int(data,pos,':');
@@ -67,9 +67,9 @@ std::pair<bencodevalue,int> parse_string(std::string& data,int pos){
 
 
 
-std::pair<bencodevalue,int> parse_value(std::string& data,int pos);
+std::pair<bencodevalue,int> parse_value(const std::string& data,int pos);
 
-std::pair<bencodevalue,int> parse_list(std::string& data,int pos){
+std::pair<bencodevalue,int> parse_list(const std::string& data,int pos){
     bencodevalue temp;
     bencodelist ret;
     
@@ -86,7 +86,7 @@ std::pair<bencodevalue,int> parse_list(std::string& data,int pos){
 
 }
 
-std::pair<bencodevalue,int> parse_dict(std::string& data,int pos){
+std::pair<bencodevalue,int> parse_dict(const std::string& data,int pos){
     bencodedict dict;
     bencodevalue ret;
     // if(data[pos]=='e') throw std::runtime_error("invalid bencode");   //empty dict are perfectly valid
@@ -109,7 +109,7 @@ std::pair<bencodevalue,int> parse_dict(std::string& data,int pos){
 
 
 
-std::pair<bencodevalue,int> parse_value(std::string& str,int pos){
+std::pair<bencodevalue,int> parse_value(const std::string& str,int pos){
     if(str[pos]=='i') return parse_int(str,pos+1,'e');
     if(isdigit(str[pos])) return parse_string(str,pos);
     if(str[pos]=='l') return parse_list(str,pos+1);
@@ -118,7 +118,7 @@ std::pair<bencodevalue,int> parse_value(std::string& str,int pos){
 }
 
 
-bencodevalue benvaluedecode(std::string& str){
+bencodevalue benvaluedecode(const std::string& str){
     auto [value,pos]=parse_value(str,0);
     return value;
 
