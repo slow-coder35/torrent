@@ -2,7 +2,7 @@
 #define BENPARSER_H
 
 
-#include <string.h>
+#include <string>
 #include <vector>
 #include <map> 
 #include <memory>
@@ -10,13 +10,22 @@
 #include <cctype>
 #include<stdexcept>
 
+
+
+#include<fstream>
+#include<sstream>
+#include<string>
+
+struct info_start_end{
+    int start{-1};
+    int end{-1};
+};
+
 struct bencodevalue;
 using bencodedict=std::map<std::string,bencodevalue>;
 using bencodelist=std::vector<bencodevalue>;
 using bencodeint=long long;
 using bencodestring=std::string;
-
-
 
 
 struct bencodevalue{
@@ -35,12 +44,12 @@ std::pair<bencodevalue,int> parse_int(const std::string& data,int pos,char c)
     bool isnegative=(data[pos]=='-');
     if(isnegative) pos++;
     int idx=pos;
-    if(data[pos]=='0' && isnegative) throw std::runtime_error("invalid bencode");
+    if(data[pos]=='0' && isnegative) throw std::runtime_error("invalid bencode 1");
     while(data[pos]!=c && isdigit(data[pos])){
         number=number*10+ (data[pos]-'0');
         pos++;
     }
-    if((!isdigit(data[pos]) && data[pos]!=c)|| idx==pos ) throw std::runtime_error("invalid bencode");
+    if((!isdigit(data[pos]) && data[pos]!=c)|| idx==pos ) throw std::runtime_error("invalid bencode 2");
     if(isnegative) number=-1*number;
     bencodevalue result;
     result.value=number;
@@ -67,15 +76,15 @@ std::pair<bencodevalue,int> parse_string(const std::string& data,int pos){
 
 
 
-std::pair<bencodevalue,int> parse_value(const std::string& data,int pos);
+std::pair<bencodevalue,int> parse_value(const std::string& data,int pos,info_start_end* i=nullptr);
 
-std::pair<bencodevalue,int> parse_list(const std::string& data,int pos){
+std::pair<bencodevalue,int> parse_list(const std::string& data,int pos,info_start_end* i=nullptr){
     bencodevalue temp;
     bencodelist ret;
     
     
   while(data[pos]!='e'){
-    auto [x,y] = parse_value(data,pos);
+    auto [x,y] = parse_value(data,pos,i);
     ret.push_back(x);
     pos=y;
   }
@@ -86,7 +95,9 @@ std::pair<bencodevalue,int> parse_list(const std::string& data,int pos){
 
 }
 
-std::pair<bencodevalue,int> parse_dict(const std::string& data,int pos){
+
+std::pair<bencodevalue,int> parse_dict(const std::string& data,int pos,info_start_end* i=nullptr){
+    
     bencodedict dict;
     bencodevalue ret;
     // if(data[pos]=='e') throw std::runtime_error("invalid bencode");   //empty dict are perfectly valid
@@ -96,11 +107,18 @@ std::pair<bencodevalue,int> parse_dict(const std::string& data,int pos){
         if(!isdigit(data[pos])) throw std::runtime_error("wrong format benvode");
         auto [x,y]=parse_string(data,pos);
         std::string key=std::get<bencodestring>(x.value);
+        if(key=="info"){
+            //fill out the info_Start_end for sha-1 hash generation
+            i->start=y;    
+        }
         pos=y;
         //get value {bencodevalue is how we take back the values}
-        auto [a,b]=parse_value(data,y);
+        auto [a,b]=parse_value(data,y,i);
         dict[key]=a;
-        pos=b;       
+        pos=b;
+        if(key=="info"){
+            i->end=b;
+        }       
     }
     // if(idx==pos) throw std::runtime_error(" wrong format");
     ret.value=dict;
@@ -109,7 +127,7 @@ std::pair<bencodevalue,int> parse_dict(const std::string& data,int pos){
 
 
 
-std::pair<bencodevalue,int> parse_value(const std::string& str,int pos){
+std::pair<bencodevalue,int> parse_value(const std::string& str,int pos,info_start_end* i=nullptr){
     if(str[pos]=='i') return parse_int(str,pos+1,'e');
     if(isdigit(str[pos])) return parse_string(str,pos);
     if(str[pos]=='l') return parse_list(str,pos+1);
@@ -118,7 +136,10 @@ std::pair<bencodevalue,int> parse_value(const std::string& str,int pos){
 }
 
 
-bencodevalue benvaluedecode(const std::string& str){
+
+   
+
+bencodevalue benvaluedecode(const std::string& str,info_start_end* i=nullptr){
     auto [value,pos]=parse_value(str,0);
     return value;
 
