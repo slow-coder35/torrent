@@ -24,6 +24,9 @@ class PeerConnection{
         std::string id{20};
         int sock_fd;
 
+        std::vector<uint8_t> bitfeild;
+        int pieces_count;
+
         bool am_choking;
         bool peer_choking;
 
@@ -127,7 +130,7 @@ std::string sha1_hash(const std::string& data){
 
 }
 
-std::vector<PeerConnection> get_peer_connections(bencodedict res_dict,const std::string& info_hash,const std::string& peer_id){
+std::vector<PeerConnection> get_peer_connections(bencodedict res_dict,const std::string& info_hash,const std::string& peer_id,int total_pieces){
      auto peers_list=res_dict["peers"];
     bencodestring peer=std::get<bencodestring>(peers_list.value);
     int peer_list_length=peer.size();
@@ -149,7 +152,7 @@ std::vector<PeerConnection> get_peer_connections(bencodedict res_dict,const std:
 
         offset+=6;
     }
-       std::vector<PeerConnection> peer_connections;
+    std::vector<PeerConnection> peer_connections;
     PeerConnection temp{};
     for(int i=0;i<peer_count ;i++){
             
@@ -186,6 +189,9 @@ std::vector<PeerConnection> get_peer_connections(bencodedict res_dict,const std:
                 continue;
             }
             temp.id=reply.substr(48-20,20);
+            (temp.bitfeild).resize(total_pieces,0);
+            temp.pieces_count=total_pieces;
+            temp.info=peers[i];
             peer_connections.push_back(temp);
 
     }
@@ -194,11 +200,91 @@ std::vector<PeerConnection> get_peer_connections(bencodedict res_dict,const std:
 }
 
 
-auto self_peer_id=generate_binary_peer_id();
 
-int main(){
 
+void recieve_choke(PeerConnection& Peer){
+    //should just set the PeerConnection.peer_choked to true
+    Peer.peer_choking=true;
+    return;
+}
+void recieve_unchoke(PeerConnection& Peer){
+    Peer.peer_choking=false;
+}
+void recieve_intrested(PeerConnection& Peer){
+    Peer.peer_intrested=true;
+    return;
+}
+
+void recieve_not_intrested(PeerConnection& Peer){
+    Peer.peer_intrested=false;
+    return;
+}
+
+void set_piece(int piece_index,PeerConnection& Peer){
+    auto byte=piece_index/8;
+    auto bit=piece_index%8;
+    Peer.bitfeild[byte]|=(1<<(7-bit));
     
+}
+
+void recieve_have(const std::string& msg,PeerConnection& Peer){
+    uint32_t net_index;
+    memcpy(&net_index,msg.data()+1,4);
+    uint32_t piece_index=ntohl(net_index);
+    set_piece(piece_index,Peer);   
+}
+
+
+
+void recieve_bitfeild(const std::string& msg,PeerConnection& Peer){
+    Peer.bitfeild.assign(msg.begin()+1,msg.end());
+    return;
+}
+
+inline bool has_piece(size_t piece_id,const std::vector<uint8_t>& my_bitfield){
+    int byte=piece_id/8;
+    int bit=piece_id%8;
+    return my_bitfield[byte] & (1<<(7-bit));
+}
+void recieve_request(const std::string& msg,PeerConnection& Peer,const std::vector<uint8_t>& my_bitfield){
+    uint32_t temp, piece_id,begin,length;
+    memcpy(&temp,msg.data()+1,4);
+    piece_id=ntohl(temp);
+    memcpy(&temp,msg.data()+5,4);
+    begin=ntohl(temp);
+    memcpy(&temp,msg.data()+9,4);
+    length=ntohl(temp);
+    //verify if i have the piece
+    if(has_piece(piece_id,my_bitfield)){
+        //send the chunk routine
+    }
+
+}
+
+
+void recieve_peice(const std::string& msg,PeerConnection& Peer){
+
+}
+void recieve_cancel(const std::string& msg,PeerConnection& Peer);
+
+void process_message(std::string& msg,PeerConnection& Peer,std::vector<uint8_t>& my_bitfeild){
+    unsigned char id=msg[0];
+
+    switch(id){
+        case 0: //choke
+        case 1: //unchoke
+        case 2: //intrested
+        case 3: //not intrested
+        case 4: //have
+        case 5: //bitfeild
+        case 6: //request
+        case 7: //peice
+        case 8: //cancel
+    }
+}
+
+auto self_peer_id=generate_binary_peer_id();
+int main(){   
 
     struct info_start_end i;
     auto path="/home/bae/Desktop/torrent/app/Forza Horizon 6 [FitGirl Repack].torrent";
@@ -224,7 +310,7 @@ int main(){
     
 
     //setting up for connection
-    std::string peer_id{20};
+    std::string peer_id;
 
 
     
@@ -271,16 +357,71 @@ if (info_dict.count("length")) {
     bencodevalue res=benvaluedecode(response);
     bencodedict res_dict=std::get<bencodedict>(res.value);
     
-    //auto get list of working peers 
-    auto peer_connections=get_peer_connections(res_dict,sh,peer_id);
+    //auto get list of working peers and connect to them  
+    //peer wire protocol
+     std::vector<uint8_t> my_bitfeild;
+    int total_pieces{0};
+    { auto piece_bencode=info_dict["piece_length"];
+    auto piece_length=std::get<bencodeint>(piece_bencode.value);
+    total_pieces=(total_size+piece_length-1)/piece_length;
+    int bitfeild_bytes=(total_pieces+7)/8;
+    my_bitfeild.resize(bitfeild_bytes,0);
+    }
 
 
-    //we connect the peers with us(application or user using std peer wire protocol)
-    
+    auto peer_connections=get_peer_connections(res_dict,sh,peer_id,total_pieces);
 
+   
 
+    auto Peer=peer_connections[0];
+    std::string buf,msg;
+    uint32_t len{0};
+    int n{1};
+    std::string buf;
 
+    while (true)
+    {
+    // Can we parse a complete message already?
+    if (buf.size() >= 4)
+    {
+        uint32_t len;
+        std::memcpy(&len, buf.data(), 4);
+        len = ntohl(len);
 
+        // Do we have the whole message?
+        if (buf.size() >= 4 + len)
+        {
+            std::string msg = buf.substr(4, len);
+
+            // Remove the processed message from the buffer
+            buf.erase(0, 4 + len);
+
+            process_message(msg,Peer,my_bitfeild);
+
+            // another complete message
+            continue;
+        }
+    }
+
+    // Need more bytes
+    char temp[4096];
+    int n = recv(Peer.sock_fd, temp, sizeof(temp), 0);
+
+    if (n == 0)
+    {
+        // Peer closed the connection
+        break;
+    }
+
+    if (n < 0)
+    {
+        // Error
+        perror("recv");
+        break;
+    }
+
+    buf.append(temp, n);
+}
 
 
 }
