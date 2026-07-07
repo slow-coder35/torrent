@@ -3,8 +3,10 @@
 
 
 #include<string>
+#include<cstring>
 #include<vector>
 #include<memory>
+
 
 
 #include"benencoder.h"
@@ -33,7 +35,7 @@ class torrent{
             assign_announce_list(root);
             //assign file_list_ 
             bencodevalue info_rt=root["info"];
-            bencodedict info_root=std::get<bencodedict>(info_rt.value);
+            bencodedict& info_root=std::get<bencodedict>(info_rt.value);
             assign_file_list(info_root);
             //assign name
             assign_name(info_root);
@@ -41,13 +43,65 @@ class torrent{
             assign_piece_length(info_root);
             //assign piecehash
             assign_sha1_pieces(info_root);
+            if (multi_file)
+            {
+                for (auto c : file_list_)
+                {
+                    total_size_ += c.size;
+                }
+            }
+            else
+            {
+                total_size_ = file_.size;
+            }
         }
-        
 
         bool multifile()const{
             return multi_file;
         }
 
+        //return announce 
+        const std::string& announce() {
+            return announce_;
+        }
+
+        //retuen announcelist
+        const std::vector<std::string>& announce_list(){
+            return announce_list_;
+        }
+        //return fileleist
+        const std::vector<file>& file_list(){
+            return file_list_;
+        }
+        //return file_
+        const file fl(){
+            return file_;
+        }
+        //return piece_length
+        const uint64_t piece_length(){
+            return piece_length_;
+        }
+        //return hash pieces
+        const std::string sha1_piece(uint32_t piece_no){ 
+             
+            return std::string(pieces_sha1_hash_.data()+piece_no*20, 20);
+        }
+
+        const std::string info_value(){
+            return pieces_sha1_hash_;
+        }
+
+        const uint64_t total_size(){
+            return total_size_;
+        }
+        const uint64_t total_pieces(){
+            total_pieces_=(total_size_+piece_length_)/piece_length_;
+            return total_pieces_;
+        }
+
+        const std::string& info_hash(){
+            return info_hash_;
+        }
 
     private:
         std::string announce_;
@@ -61,8 +115,14 @@ class torrent{
         uint32_t piece_length_;
 
         std::string pieces_sha1_hash_;
+        uint64_t total_size_;
+        uint64_t total_pieces_;    //=(totall_size+piece_length)/piece_length
+        std::string info_hash_;    //have to assign it here itself have to do some mani to make it work
 
         bool multi_file;
+
+
+
         
         void assign_announce(bencodedict& root){
             bencodevalue announce=root["announce"];

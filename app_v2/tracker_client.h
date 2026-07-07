@@ -16,11 +16,12 @@ class trackerclient{
     }
     //connect to host 
     //return vector<peerinfo>
+    std::vector<peerinfo> peer_list; //so that it can be used in the torrent_session
 
     private:
     std::shared_ptr<torrent> torrent;
     std::string self_peer_id;//placeholder for now comes in downloadmanager or master afaik one for all the torrents wherever it is
-    std::vector<peerinfo> peer_list;
+    
 
 
 

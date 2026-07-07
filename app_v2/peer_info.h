@@ -17,6 +17,10 @@ class peerinfo{
             }
             peerinfo(){}
 
+        std::string id;
+        std::string ip;
+        uint16_t    port;
+
             // void set_i_am_intrested(){
             //     i_am_intrested_=true;
             // }
@@ -58,9 +62,7 @@ class peerinfo{
             // bool get_peer_choking()const{
             //     return peer_choking_;
             // }
-        std::string id;
-        std::string ip;
-        uint16_t    port;
+        
 
     private:
         // bool i_am_intrested_{false};

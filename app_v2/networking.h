@@ -61,6 +61,7 @@ int connect_to_host(peerinfo& peer){
 }
 
 
+
 int  recv_all(int sockfd,std::string& ret){
     
     char buffer[BUFFER_LENGTH];
@@ -76,6 +77,8 @@ int  recv_all(int sockfd,std::string& ret){
     return recived_sofar ;
 }
 
+
+
 int send_all(int sockfd, const std::string& data){
     size_t total_sent = 0;
     while(total_sent < data.length()){
@@ -85,6 +88,9 @@ int send_all(int sockfd, const std::string& data){
     }
     return static_cast<int>(total_sent);
 }
+
+
+
 
 
 std::string encode_url(const std::string& hash){
@@ -102,12 +108,17 @@ std::string encode_url(const std::string& hash){
     return ret;
 }
 
+
+
 struct url_parts{
     std::string scheme;
     std::string host;
     std::string port;
     std::string path;
 };
+
+
+
 
 struct url_parts parse_url(std::string_view url_str){
     struct url_parts ret{};
@@ -135,6 +146,10 @@ struct url_parts parse_url(std::string_view url_str){
 }   
 
 
+
+
+
+
 std::string generate_binary_peer_id() {
     std::vector<uint8_t> peer_id(20);
     
@@ -148,6 +163,10 @@ std::string generate_binary_peer_id() {
     
     return std::string(peer_id.begin(),peer_id.end());
 }
+
+
+
+
 
 std::string sha1_hash(const std::string& data){
     EVP_MD_CTX* ctx=EVP_MD_CTX_new();
