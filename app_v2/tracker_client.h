@@ -10,6 +10,7 @@ class trackerclient{
     trackerclient(std::shared_ptr<torrent> torrent): torrent(torrent){
         self_peer_id=generate_binary_peer_id();
     }
+    trackerclient(){}
     //send get request 
     void get_peer_list(){
         send_get_request_get_peers();
