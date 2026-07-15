@@ -6,22 +6,11 @@
 #include <vector>
 #include <mutex>
 #include "networking.h"
+#include "misc.h"
 
 
 // #include "peerconnection.h"
 
-class  piece{
-
-    
-    public:
-    uint32_t id;
-    
-    bool to_download{true};
-    bool downloaded;
-    bool downloading;
-    bool verifying;
-
-};
 
 
 

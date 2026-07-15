@@ -37,7 +37,7 @@ struct bencodevalue{
 
 
 //PARSE An int 
-std::pair<bencodevalue,int> parse_int(const std::string& data,int pos,char c)
+inline std::pair<bencodevalue,int> parse_int(const std::string& data,int pos,char c)
 {
     
     bencodeint number={0};
@@ -57,7 +57,7 @@ std::pair<bencodevalue,int> parse_int(const std::string& data,int pos,char c)
 }
 
 
-std::pair<bencodevalue,int> parse_string(const std::string& data,int pos){
+inline std::pair<bencodevalue,int> parse_string(const std::string& data,int pos){
     bencodestring ret{""};
     
     auto [n,x]=parse_int(data,pos,':');
@@ -76,9 +76,9 @@ std::pair<bencodevalue,int> parse_string(const std::string& data,int pos){
 
 
 
-std::pair<bencodevalue,int> parse_value(const std::string& data,int pos);
+inline std::pair<bencodevalue,int> parse_value(const std::string& data,int pos);
 
-std::pair<bencodevalue,int> parse_list(const std::string& data,int pos){
+inline std::pair<bencodevalue,int> parse_list(const std::string& data,int pos){
     bencodevalue temp;
     bencodelist ret;
     
@@ -96,7 +96,7 @@ std::pair<bencodevalue,int> parse_list(const std::string& data,int pos){
 }
 
 
-std::pair<bencodevalue,int> parse_dict(const std::string& data,int pos){
+inline std::pair<bencodevalue,int> parse_dict(const std::string& data,int pos){
     
     bencodedict dict;
     bencodevalue ret;
@@ -120,7 +120,7 @@ std::pair<bencodevalue,int> parse_dict(const std::string& data,int pos){
 
 
 
-std::pair<bencodevalue,int> parse_value(const std::string& str,int pos){
+inline std::pair<bencodevalue,int> parse_value(const std::string& str,int pos){
     if(str[pos]=='i') return parse_int(str,pos+1,'e');
     if(isdigit(str[pos])) return parse_string(str,pos);
     if(str[pos]=='l') return parse_list(str,pos+1);
@@ -132,7 +132,7 @@ std::pair<bencodevalue,int> parse_value(const std::string& str,int pos){
 
    
 
-bencodevalue benvaluedecode(const std::string& str){
+inline bencodevalue benvaluedecode(const std::string& str){
     auto [value,pos]=parse_value(str,0);
     return value;
 

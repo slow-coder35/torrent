@@ -15,18 +15,16 @@
 #include<optional>
 #include<random>
 
-#include <openssl/evp.h>
-#include <openssl/err.h>
-
+#include "misc.h"
 #include "torrent.h"
-#include "peer_info.h"
+#include "peer_info.h"                                      
 //hostname=peerinfo.ip;
 //port=peerinfo.port
 #define BUFFER_LENGTH 4096
 
 
 
-int connect_to_host(peerinfo& peer){
+inline int connect_to_host(peerinfo& peer){
     struct addrinfo hint{};
     struct addrinfo *results,*p;
 
@@ -62,7 +60,7 @@ int connect_to_host(peerinfo& peer){
 
 
 
-int  recv_all(int sockfd,std::string& ret){
+inline int  recv_all(int sockfd,std::string& ret){
     
     char buffer[BUFFER_LENGTH];
     int recived_sofar=0;
@@ -79,7 +77,7 @@ int  recv_all(int sockfd,std::string& ret){
 
 
 
-int send_all(int sockfd, const std::string& data){
+inline int send_all(int sockfd, const std::string& data){
     size_t total_sent = 0;
     while(total_sent < data.length()){
         int result = send(sockfd, data.c_str() + total_sent, data.length() - total_sent, 0);
@@ -93,7 +91,7 @@ int send_all(int sockfd, const std::string& data){
 
 
 
-std::string encode_url(const std::string& hash){
+inline std::string encode_url(const std::string& hash){
     std::string ret;
     for(char c:hash){
         if (isalnum(c) || c=='-' || c=='_' || c=='.' || c=='~') {
@@ -120,7 +118,7 @@ struct url_parts{
 
 
 
-struct url_parts parse_url(std::string_view url_str){
+inline struct url_parts parse_url(std::string_view url_str){
     struct url_parts ret{};
     auto scheme_end=url_str.find("://");
     if(scheme_end==std::string::npos) throw std::runtime_error("Invalid URL\n");
@@ -150,7 +148,7 @@ struct url_parts parse_url(std::string_view url_str){
 
 
 
-std::string generate_binary_peer_id() {
+inline std::string generate_binary_peer_id() {
     std::vector<uint8_t> peer_id(20);
     
     std::random_device rd;
@@ -168,88 +166,76 @@ std::string generate_binary_peer_id() {
 
 
 
-std::string sha1_hash(const std::string& data){
-    EVP_MD_CTX* ctx=EVP_MD_CTX_new();
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int hash_len;
-    EVP_DigestInit_ex(ctx, EVP_sha1(), nullptr);
-    EVP_DigestUpdate(ctx, data.data(), data.size());
-    EVP_DigestFinal_ex(ctx, hash, &hash_len);
-    EVP_MD_CTX_free(ctx);
-
-    return std::string(reinterpret_cast<char*>(hash), hash_len);
-
-}
 
 
 
 
 
-std::string build_get_request(){
+// std::string build_get_request(){
     
-}
+// }
 
-std::vector<peerinfo> send_get_request_get_peers(const std::shared_ptr<torrent> torr,const std::string& peer_id){
+// std::vector<peerinfo> send_get_request_get_peers(const std::shared_ptr<torrent> torr,const std::string& peer_id){
 
-    auto host=parse_url(torr->announce());           //get the url from torrent announce feild
-    auto sh=sha1_hash(torr->info_value());           //hash all the sha1 hashes in pieces:
-                                 //total length of the torrent
+//     auto host=parse_url(torr->announce());           //get the url from torrent announce feild
+//     auto sh=sha1_hash(torr->info_value());           //hash all the sha1 hashes in pieces:
+//                                  //total length of the torrent
   
 
-    std::string GET_REQ = 
-    "GET " + host.path + "?info_hash=" + encode_url(sh) +
-    "&peer_id=" + encode_url(peer_id) +
-    "&port=6881" +
-    "&uploaded=0" +
-    "&downloaded=0" +
-    "&left=" + std::to_string(torr->total_size()) +
-    "&compact=1" +
-    " HTTP/1.1\r\n" +
-    "Host: " + std::string(host.host) + "\r\n" +
-    "Connection: close\r\n" +
-    "\r\n";
+//     std::string GET_REQ = 
+//     "GET " + host.path + "?info_hash=" + encode_url(sh) +
+//     "&peer_id=" + encode_url(peer_id) +
+//     "&port=6881" +
+//     "&uploaded=0" +
+//     "&downloaded=0" +
+//     "&left=" + std::to_string(torr->total_size()) +
+//     "&compact=1" +
+//     " HTTP/1.1\r\n" +
+//     "Host: " + std::string(host.host) + "\r\n" +
+//     "Connection: close\r\n" +
+//     "\r\n";
 
-    peerinfo temp;
-    temp.ip=host.host;
-    temp.port=static_cast<uint16_t>(std::stoi(host.port));
-    int sockfd=connect_to_host(temp);
+//     peerinfo temp;
+//     temp.ip=host.host;
+//     temp.port=static_cast<uint16_t>(std::stoi(host.port));
+//     int sockfd=connect_to_host(temp);
 
-    std::string response;
-    int recv_status=recv_all(sockfd,response);
+//     std::string response;
+//     int recv_status=recv_all(sockfd,response);
     
-    int start=response.find("\r\n\r\n");
-    response.erase(0,start+4);
+//     int start=response.find("\r\n\r\n");
+//     response.erase(0,start+4);
 
-    //parse the response 
-    bencodevalue res=benvaluedecode(response);
-    bencodedict res_dict=std::get<bencodedict>(res.value);
+//     //parse the response 
+//     bencodevalue res=benvaluedecode(response);
+//     bencodedict res_dict=std::get<bencodedict>(res.value);
 
-    auto peers_list=res_dict["peers"];
-    bencodestring peer=std::get<bencodestring>(peers_list.value);
-    int peer_list_length=peer.size();
-    int peer_count=peer.size()/6;
-    int offset{0};
-    std::vector<peerinfo> peers{peer_count};
+//     auto peers_list=res_dict["peers"];
+//     bencodestring peer=std::get<bencodestring>(peers_list.value);
+//     int peer_list_length=peer.size();
+//     int peer_count=peer.size()/6;
+//     int offset{0};
+//     std::vector<peerinfo> peers{peer_count};
 
-    for(int i=0;i<peer_count;i++){
-        char ip[INET_ADDRSTRLEN];
-         uint16_t port;
+//     for(int i=0;i<peer_count;i++){
+//         char ip[INET_ADDRSTRLEN];
+//          uint16_t port;
 
-        inet_ntop(AF_INET,offset+peer.data(),ip,INET_ADDRSTRLEN);
+//         inet_ntop(AF_INET,offset+peer.data(),ip,INET_ADDRSTRLEN);
 
-        std::memcpy(&port, peer.data() + offset + 4, sizeof(port));
-        port = ntohs(port);
+//         std::memcpy(&port, peer.data() + offset + 4, sizeof(port));
+//         port = ntohs(port);
 
-        peers[i].ip=ip;
-        peers[i].port=port;
+//         peers[i].ip=ip;
+//         peers[i].port=port;
 
-        offset+=6;
-    }    
+//         offset+=6;
+//     }    
 
-    return peers;
+//     return peers;
 
 
-}
+// }
 
 
 

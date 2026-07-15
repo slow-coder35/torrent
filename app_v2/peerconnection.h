@@ -6,7 +6,11 @@
 #include"peer_info.h"
 #include "torrent.h"
 #include"networking.h"
-#include "torrent_session.h"
+// #include "torrent_session.h"
+#include"misc.h"
+
+                 //have to figure oiut why is it needed even after include torrent_session.h
+class torrent_session;
 
 class peerconnection{
     public:
@@ -18,7 +22,7 @@ class peerconnection{
 
 
 
-        int communication();
+        void communication();
 
 
 
@@ -49,7 +53,7 @@ class peerconnection{
 
     int send_handshake(const std::string& self_peer_id);
 
-    int recieve_handshake(){}
+    int recieve_handshake();
     void recieve_choke();
     void recieve_unchoke();
     void recieve_intrested();
@@ -62,9 +66,7 @@ class peerconnection{
     void process_message(const std::string& msg);
     
     void request_piece();
-    std::string peerconnection::req_msg();
-   
-
+    std::string req_msg();
 
 };
 

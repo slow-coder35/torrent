@@ -22,35 +22,9 @@
 
 // };
 
-
-
-class bit_f{
-
-    public:
-        bit_f(){}
-
-        std::vector<piece> bitfield;
-
-        bool has(uint32_t piece_id){
-            int byte=piece_id/8;
-            int bit=piece_id%8;
-            return bitfield[byte].id & (1<<(7-bit));
-        }
-
-        void set(uint32_t piece_id){
-            int byte=piece_id/8;
-            int bit=piece_id%8;
-            bitfield[byte].id=bitfield[byte].id | (1<<(7-bit));
-        }
-
-        void unset(uint32_t piece_id){
-            int byte=piece_id/8;
-            int bit=piece_id%8;
-            bitfield[byte].id&=~(1<<(7-bit));
-        }
-
-
-};
+#include "file_io.h"
+class bit_f;
+class torrent_session;
 
 
 
@@ -63,20 +37,42 @@ class torrent_session{
         torrent_session(std::shared_ptr<torrent> metadata):metadata(metadata){
             t=this;
         }
+
+        ~torrent_session(){
+            if(opfd>=0)
+            close(opfd);
+        }
+
+
         bit_f mbitfield;
         std::mutex bitfield_lock;
         std::map <int,activepiece> active_pieces;
         std::shared_ptr<torrent> metadata;
+        int opfd{-1};//output file discriptor
 
-    //open torret file
+    //pass it to torrent header for processing and giving out metadata  //donr
+        
 
-    //pass it to torrent header for processing and giving out metadata 
-
-    //pass i tti tracker_client where the get req is sent 
-    ////should be handeld by downloadeder or one more level up not sure 
+    //pass i tti tracker_client where the get req is sent  //done
+    ////should be handeld by downloadeder or one more level up not sure  //done 
 
     //write a function to obtain peer_connection and handshake in this file itself
+    int get_connections(){
+        int i=0;
+        for (auto p : client.peer_list){
+            peerconnection temp(p,metadata,t);
+            if(temp.connect()) {peer_connections.push_back(temp);i++;}
+            temp.communication();
 
+
+        }
+        connections=i;
+        return i;
+    }
+
+    void get_clients(){
+        client.get_peer_list();
+    }
 
     //iterate the vector add features so that it can download and upload stuff 
     //use network.h and downloadmanager.h to comlete the task 
@@ -87,28 +83,9 @@ class torrent_session{
     private:
     
     std::vector<peerconnection> peer_connections;
-
     trackerclient client;
     torrent_session *t;
-    
     int connections;
-
-    
-
-    int get_connections(){
-        int i=0;
-        for (auto p : client.peer_list){
-            peerconnection temp(p,metadata,t);
-            if(temp.connect()) {peer_connections.push_back(temp);i++;}
-            temp.communication();
-
-
-        }
-        return i;
-    }
-
-
-
 };
 
 

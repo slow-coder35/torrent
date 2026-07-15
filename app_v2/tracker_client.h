@@ -7,9 +7,8 @@
 class trackerclient{
 
     public:
-    trackerclient(std::shared_ptr<torrent> torrent): torrent(torrent){
-        self_peer_id=generate_binary_peer_id();
-    }
+    trackerclient(std::shared_ptr<torrent> torr,std::string id): torr(torr),self_peer_id(id){}
+
     trackerclient(){}
     //send get request 
     void get_peer_list(){
@@ -18,9 +17,11 @@ class trackerclient{
     //connect to host 
     //return vector<peerinfo>
     std::vector<peerinfo> peer_list; //so that it can be used in the torrent_session
+    
+
 
     private:
-    std::shared_ptr<torrent> torrent;
+    std::shared_ptr<torrent> torr;
     std::string self_peer_id;//placeholder for now comes in downloadmanager or master afaik one for all the torrents wherever it is
     
 
@@ -29,8 +30,8 @@ class trackerclient{
                                      
     int send_get_request_get_peers(){                    //maybe needs a refactor or splitting will see when implenting udp(maybe??)
 
-    auto host=parse_url(torrent->announce());           //get the url from torrent announce feild
-    auto sh=sha1_hash(torrent->info_value());           //hash all the sha1 hashes in pieces:
+    auto host=parse_url(torr->announce());           //get the url from torrent announce feild
+    auto sh=sha1_hash(torr->info_value());           //hash all the sha1 hashes in pieces:
                                  //total length of the torrent
   
 
@@ -40,7 +41,7 @@ class trackerclient{
     "&port=6881" +
     "&uploaded=0" +                                                             /////builds the get requests 
     "&downloaded=0" +
-    "&left=" + std::to_string(torrent->total_size()) +
+    "&left=" + std::to_string(torr->total_size()) +
     "&compact=1" +
     " HTTP/1.1\r\n" +
     "Host: " + std::string(host.host) + "\r\n" +

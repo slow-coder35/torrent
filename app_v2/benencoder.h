@@ -4,21 +4,21 @@
 #include "benparser.h"
 
 
+inline std::string bencode_encode(const bencodevalue& obj);
 
 
-
-std::string encode_int(const bencodevalue& obj){
+inline std::string encode_int(const bencodevalue& obj){
     auto t=std::get<bencodeint>(obj.value);
 
     return std::string{"i"+std::to_string(t)+'e'};
 }
-std::string encode_string(const bencodevalue& obj){
+inline std::string encode_string(const bencodevalue& obj){
     auto t=std::get<bencodestring>(obj.value);
     int size=t.size();
     return {std::to_string(size)+":"+t};
 }
 
-std::string encode_list(const bencodevalue& obj){
+inline std::string encode_list(const bencodevalue& obj){
     auto t=std::get<bencodelist>(obj.value);
     std::string temp{"l"};
     for(const auto& item:t){
@@ -27,7 +27,7 @@ std::string encode_list(const bencodevalue& obj){
     return temp+"e";
 }
 
-std::string encode_dict(const bencodevalue& obj){
+inline std::string encode_dict(const bencodevalue& obj){
     auto t=std::get<bencodedict>(obj.value);
     std::string temp{"d"};
     bencodevalue x;
@@ -41,7 +41,7 @@ std::string encode_dict(const bencodevalue& obj){
 }
 
 
-std::string bencode_encode(const bencodevalue& obj){
+inline std::string bencode_encode(const bencodevalue& obj){
     //we initialize the string and call the 1st function 
     //it will only parse one object as it will b always be a dictionary
     std::string encoded{""};

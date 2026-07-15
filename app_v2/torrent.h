@@ -11,7 +11,8 @@
 
 #include"benencoder.h"
 #include"benparser.h"
-
+#include"networking.h"
+#include"misc.h"
 
 struct file{
     std::string name;
@@ -32,10 +33,13 @@ class torrent{
             assign_announce(root);
            
             //assign announce list
-            assign_announce_list(root);
+            bencodevalue announce_lt=root["announce-list"];
+            bencodelist announce_list=std::get<bencodelist>(announce_lt.value);
+            assign_announce_list(announce_list);
             //assign file_list_ 
             bencodevalue info_rt=root["info"];
             bencodedict& info_root=std::get<bencodedict>(info_rt.value);
+            info_hash_=sha1_hash(encode_dict(root["info"]));
             assign_file_list(info_root);
             //assign name
             assign_name(info_root);
@@ -95,12 +99,16 @@ class torrent{
             return total_size_;
         }
         const uint64_t total_pieces(){
-            total_pieces_=(total_size_+piece_length_)/piece_length_;
+            total_pieces_=(total_size_+piece_length_-1)/piece_length_;
             return total_pieces_;
         }
 
         const std::string& info_hash(){
+
             return info_hash_;
+        }
+        const std::string& name(){
+            return name_;
         }
 
     private:
@@ -116,32 +124,30 @@ class torrent{
 
         std::string pieces_sha1_hash_;
         uint64_t total_size_;
-        uint64_t total_pieces_;    //=(totall_size+piece_length)/piece_length
+        uint64_t total_pieces_;    //=(totall_size+piece_length-1)/piece_length
         std::string info_hash_;    //have to assign it here itself have to do some mani to make it work
 
         bool multi_file;
 
-
-
+        
         
         void assign_announce(bencodedict& root){
             bencodevalue announce=root["announce"];
             announce_=std::get<bencodestring>(announce.value);
         }
 
-        void assign_announce_list(bencodedict& root){
-            bencodevalue announce_lt=root["announce-list"];
-            bencodelist announce_list=std::get<bencodelist>(announce_lt.value);
+        void assign_announce_list(bencodelist& root){
             std::string str;
-            for(auto url_str : announce_list){
-                std::string str=std::get<bencodestring> (url_str.value);
-                announce_list_.push_back(str);
+            for(auto url_str : root){
+                bencodestring sub_list=std::get<bencodestring> (url_str.value);
+                announce_list_.push_back(sub_list);
             }
         }
 
         void assign_file_list(bencodedict& info_root){
             if(info_root.count("files")){
                 //process as a multifile torrent;
+                //it isnt still complete the path is not seperated by  / so its a list in path aswell so concat it and build a path
                 multi_file=true;
                 bencodelist file_list=std::get<bencodelist>(info_root["files"].value);
                 bencodedict temp;
