@@ -41,9 +41,10 @@ inline int connect_to_host(peerinfo& peer){
 
     int c_status{-1},sockfd{-1};
     while((c_status==-1 || sockfd==-1) && p!=nullptr){
-        close(sockfd);
+        if(sockfd>0) close(sockfd);
         sockfd=socket(p->ai_family,p->ai_socktype,0);
         c_status=connect(sockfd,p->ai_addr,p->ai_addrlen);
+
         p=p->ai_next;    
     }
 
@@ -134,11 +135,7 @@ inline struct url_parts parse_url(std::string_view url_str){
     auto pt=url_str.find('/');
     if(pt==std::string::npos) throw std::runtime_error("Invalid URL\n");
     ret.port=url_str.substr(0,pt);
-    url_str.remove_prefix(pt+1);
-
-    auto pth=url_str.find('/');
-    if(pth==std::string::npos) throw std::runtime_error("Invalid Url\n");
-    ret.path=url_str;
+    ret.path = url_str.substr(pt);
 
     return ret;
 }   
