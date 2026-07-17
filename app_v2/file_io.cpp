@@ -14,6 +14,7 @@
     file.seekg(0,std::ios::beg);
 
     std::string data;
+    data.resize(size);
     file.read(data.data(),size);
     file.close();
     return data;

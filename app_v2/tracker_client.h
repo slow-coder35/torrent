@@ -17,7 +17,10 @@ class trackerclient{
     //connect to host 
     //return vector<peerinfo>
     std::vector<peerinfo> peer_list; //so that it can be used in the torrent_session
-    
+    //add a method to get peerid
+    const std::string& my_peer_id(){
+        return self_peer_id;
+    } 
 
 
     private:
@@ -28,10 +31,10 @@ class trackerclient{
 
 
                                      
-    int send_get_request_get_peers(){                    //maybe needs a refactor or splitting will see when implenting udp(maybe??)
+    int send_get_request_get_peers(){         //this function does exclty what i want              //maybe needs a refactor or splitting will see when implenting udp(maybe??)
 
     auto host=parse_url(torr->announce());           //get the url from torrent announce feild
-    auto sh=sha1_hash(torr->info_value());           //hash all the sha1 hashes in pieces:
+    auto sh=torr->info_value();           //hash all the sha1 hashes in pieces:
                                  //total length of the torrent
   
 
@@ -51,16 +54,21 @@ class trackerclient{
     peerinfo temp;
     temp.ip=host.host;                                                            //connect to the host server which distributes peers
     temp.port=static_cast<uint16_t>(std::stoi(host.port));
+    
 
 
     int sockfd=connect_to_host(temp);                                               //needs error handling
+    if (sockfd == -1) {
+    throw std::runtime_error("Could not connect");
+}
+    auto send_stat=send_all(sockfd,GET_REQ);
 
     std::string response;                                                            //reciving the message from the host containing responses in the form of 6 bytes per peers 
     int recv_status=recv_all(sockfd,response);                                        //4byte ip+ 2byte port
     
     auto start=response.find("\r\n\r\n");
         if(start==std::string::npos){
-            throw std::runtime_error("Invalid http response\n");
+            throw std::runtime_error("no http response\n");
         }
     response.erase(0,start+4);
 
@@ -90,6 +98,7 @@ class trackerclient{
         offset+=6;
     }
     close(sockfd);
+    return 1;
 }
 };
 

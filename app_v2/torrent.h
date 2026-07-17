@@ -33,9 +33,11 @@ class torrent{
             assign_announce(root);
            
             //assign announce list
+            if(root.count("announce-list")){
             bencodevalue announce_lt=root["announce-list"];
             bencodelist announce_list=std::get<bencodelist>(announce_lt.value);
             assign_announce_list(announce_list);
+            }
             //assign file_list_ 
             bencodevalue info_rt=root["info"];
             bencodedict& info_root=std::get<bencodedict>(info_rt.value);
@@ -47,6 +49,7 @@ class torrent{
             assign_piece_length(info_root);
             //assign piecehash
             assign_sha1_pieces(info_root);
+            
             if (multi_file)
             {
                 for (auto c : file_list_)
@@ -58,6 +61,7 @@ class torrent{
             {
                 total_size_ = file_.size;
             }
+            total_pieces_=(total_size_+piece_length_-1)/piece_length_;
         }
 
         bool multifile()const{
@@ -92,14 +96,13 @@ class torrent{
         }
 
         const std::string info_value(){
-            return pieces_sha1_hash_;
+            return info_hash_;
         }
 
         const uint64_t total_size(){
             return total_size_;
         }
         const uint64_t total_pieces(){
-            total_pieces_=(total_size_+piece_length_-1)/piece_length_;
             return total_pieces_;
         }
 
@@ -132,6 +135,7 @@ class torrent{
         
         
         void assign_announce(bencodedict& root){
+            
             bencodevalue announce=root["announce"];
             announce_=std::get<bencodestring>(announce.value);
         }

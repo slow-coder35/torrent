@@ -36,6 +36,9 @@ class torrent_session{
     public:
         torrent_session(std::shared_ptr<torrent> metadata):metadata(metadata){
             t=this;
+            peer_id=generate_binary_peer_id();
+            client=trackerclient(metadata,peer_id);
+            mbitfield.bitfield.resize(metadata->total_pieces());
         }
 
         ~torrent_session(){
@@ -49,6 +52,7 @@ class torrent_session{
         std::map <int,activepiece> active_pieces;
         std::shared_ptr<torrent> metadata;
         int opfd{-1};//output file discriptor
+        std::string peer_id;
 
     //pass it to torrent header for processing and giving out metadata  //donr
         
@@ -60,10 +64,13 @@ class torrent_session{
     int get_connections(){
         int i=0;
         for (auto p : client.peer_list){
+            std::cout <<"ip:"<<p.ip<<'\n' <<"\n";   //log lines nothing of value
             peerconnection temp(p,metadata,t);
-            if(temp.connect()) {peer_connections.push_back(temp);i++;}
-            temp.communication();
+            if(temp.connect()) {peer_connections.push_back(temp);i++;
+                std::cout<<" is connected\n";
 
+            temp.communication();
+            }
 
         }
         connections=i;

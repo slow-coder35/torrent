@@ -19,8 +19,9 @@
 class activepiece{
     public:
         activepiece(uint32_t id,uint32_t piece_length):id(id),piece_length(piece_length){
-            block_count=piece_length/BLOCK_LENGTH;
+            block_count = (piece_length + BLOCK_LENGTH - 1) / BLOCK_LENGTH;
             blocks_recieved.resize(block_count);
+            buffer.resize(piece_length);
         }
         // std::mutex piece_mutex;  not required rn as one piece handeld be one thread but in fufture if blocks can be requested to differnt peers it will be necessary
         uint32_t id;

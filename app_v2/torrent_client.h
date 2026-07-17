@@ -22,13 +22,18 @@ class torrent_client{
 
 
             std::string data=fetch_torrent_file(path);
-            auto metadata = std::make_shared<torrent>(data);
+            
+            auto metadata = std::make_shared<torrent>(data);//data is passed and torrent meta data is complete
+            
             auto session=std::make_shared<torrent_session>(metadata);
+            //i have to get peers first 
+            session->get_clients();
+            session->opfd=create_placeholder_file(session.get());
+            //get peerconnection they are not created atomatically
+            session->get_connections();
+
             create_placeholder_file(session.get());  //it does return an int but lets ingonre for now
             sessions.push_back(session);
-            auto tracker=std::make_shared<trackerclient>(metadata,id);
-            session->get_clients();
-            session->get_connections();
         }
 
 

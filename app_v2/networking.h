@@ -78,6 +78,20 @@ inline int  recv_all(int sockfd,std::string& ret){
 
 
 
+
+inline int recv_s(uint32_t sockfd,std::string& reply,int length){
+    reply.clear();
+    char buffer[BUFFER_LENGTH];
+    int recieved_sofar=0;
+    while(recieved_sofar<length){
+        int ret_size=recv(sockfd,buffer,std::min(BUFFER_LENGTH,length-recieved_sofar),0);
+        if(ret_size<=0) return -2;
+        recieved_sofar+=ret_size;
+        reply.append(buffer,ret_size);
+    }
+    return recieved_sofar == length ? recieved_sofar : -1;
+}
+
 inline int send_all(int sockfd, const std::string& data){
     size_t total_sent = 0;
     while(total_sent < data.length()){
