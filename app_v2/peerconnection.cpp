@@ -85,8 +85,17 @@ int peerconnection::send_handshake(const std::string &self_peer_id)
 void peerconnection::communication()
 {
     std::string buf;
-    while (true)
-    {
+
+    
+    int downloaded_num{0};
+
+    while (downloaded_num<t->metadata->total_pieces())
+    {   
+        {
+        std::lock_guard<std::mutex> guard(t->bitfield_lock);
+        downloaded_num=t->downloaded_piece_count;
+    }
+
         // Can we parse a complete message already?
         if (buf.size() >= 4)
         {
@@ -134,6 +143,8 @@ void peerconnection::communication()
 
         buf.append(temp, n);
     }
+    std::cout<<"-------------download finished---------------\n";
+
 }
 
 void peerconnection::process_message(const std::string &msg)
@@ -222,6 +233,7 @@ void peerconnection::recieve_bitfeild(const std::string &msg)
             required_pieces.push_back(i);
         }
     }
+    std::cout<<msg.size()<<'\n';
     mintrested = (!required_pieces.empty());
     curr_idx = 0;
     
@@ -240,6 +252,10 @@ void peerconnection::recieve_have(const std::string &msg)
     piece_index = ntohl(piece_index);
     std::cout<<"recieved a have msg"<<" piece_id"<<piece_index<<'\n';
     pbitfield.set(piece_index);
+    if (!t->mbitfield.has(piece_index) && pbitfield.has(piece_index))
+    {
+        required_pieces.push_back(piece_index);
+    }
 }
 
 void peerconnection::recieve_request(const std::string &msg)
@@ -260,6 +276,10 @@ void peerconnection::recieve_request(const std::string &msg)
 
 void peerconnection::request_piece()
 {   
+
+
+
+    if(t->downloaded_piece_count==t->metadata->total_pieces()) return;
 
     std::cout <<"requesting now\n";
     if (curr_idx < required_pieces.size() && mintrested && !pchoking)
@@ -346,7 +366,7 @@ void peerconnection::recieve_peice(const std::string &msg)
     piece = ntohl(piece);
     begin = ntohl(begin);
     auto &ap=t->active_pieces.at(piece);
-    std::cout <<piece<<'\n';
+    std::cout <<piece;
 
     memcpy(ap.buffer.data() + begin, msg.data() + 9, msg.length() - 9);
 

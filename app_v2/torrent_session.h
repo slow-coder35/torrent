@@ -49,6 +49,7 @@ class torrent_session{
 
         bit_f mbitfield;
         std::mutex bitfield_lock;
+        uint32_t downloaded_piece_count{0};
         std::map <int,activepiece> active_pieces;
         std::shared_ptr<torrent> metadata;
         int opfd{-1};//output file discriptor

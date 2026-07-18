@@ -30,10 +30,9 @@ class torrent_client{
             session->get_clients();
             session->opfd=create_placeholder_file(session.get());
             //get peerconnection they are not created atomatically
-            session->get_connections();
-
-            create_placeholder_file(session.get());  //it does return an int but lets ingonre for now
-            sessions.push_back(session);
+            session->get_connections();             //it does return an int but lets ingonre for now it sets connections and starts comunicating aswell 
+            //optional file verification 
+            // sessions.push_back(session);            //torrent is already done atp
         }
 
 
