@@ -8,7 +8,9 @@
 #include "tracker_client.h"
 #include"peer_info.h"
 #include <mutex>
+#include <list>
 #include"piecemanager.h"
+#include <thread>
 
 
 // struct  piece{
@@ -46,7 +48,8 @@ class torrent_session{
             close(opfd);
         }
 
-
+        uint32_t downloaded_num{0};  //can change logic for it when i add pause stop force start maybe a function to get the count when required or sstarting a new seession
+        
         bit_f mbitfield;
         std::mutex bitfield_lock;
         uint32_t downloaded_piece_count{0};
@@ -67,15 +70,27 @@ class torrent_session{
         for (auto p : client.peer_list){
             std::cout <<"ip:"<<p.ip<<'\n' <<"\n";   //log lines nothing of value
             peerconnection temp(p,metadata,t);
-            if(temp.connect()) {peer_connections.push_back(temp);i++;
+            if(temp.connect()) {peer_connections.push_back(std::move(temp));i++;
                 std::cout<<" is connected\n";
-
-            temp.communication();
+            // temp.communication();
             }
 
         }
         connections=i;
         return i;
+    }
+
+    void start_communication(){
+        for (auto& connection:peer_connections){
+            threads.emplace_back(&peerconnection::communication,&connection);
+            std::cout << "communication started with "<< connection.pinfo().ip<<'\n';
+        }
+    }
+
+    void wait_to_finish(){
+        for (auto& i : threads){
+            i.join();
+        }
     }
 
     void get_clients(){
@@ -90,10 +105,12 @@ class torrent_session{
     
     private:
     
-    std::vector<peerconnection> peer_connections;
+    std::list<peerconnection> peer_connections;
     trackerclient client;
     torrent_session *t;
     int connections;
+    std::list<std::thread> threads;
+
 };
 
 

@@ -46,7 +46,7 @@ class trackerclient{
     "&downloaded=0" +
     "&left=" + std::to_string(torr->total_size()) +
     "&compact=1" +
-    " HTTP/1.1\r\n" +
+    " HTTP/1.1\r\n" +             //ill have to change this for https and make a reciving type 
     "Host: " + std::string(host.host) + "\r\n" +
     "Connection: close\r\n" +
     "\r\n";
@@ -55,23 +55,30 @@ class trackerclient{
     temp.ip=host.host;                                                            //connect to the host server which distributes peers
     temp.port=static_cast<uint16_t>(std::stoi(host.port));
     
+    //////
 
 
-    int sockfd=connect_to_host(temp);                                               //needs error handling
-    if (sockfd == -1) {
-    throw std::runtime_error("Could not connect");
-}
-    auto send_stat=send_all(sockfd,GET_REQ);
 
-    std::string response;                                                            //reciving the message from the host containing responses in the form of 6 bytes per peers 
-    int recv_status=recv_all(sockfd,response);                                        //4byte ip+ 2byte port
-    
+    //needs refactoring 
+    //should go into http or https 
+    int scheme=(host.scheme=="HTTP"?1:2);
+
+    std::string response;
+
+    switch(scheme){
+        case (1):response=handshake_http(temp,GET_REQ);break;
+        case (2): response=handshake_https(temp,GET_REQ);break;
+
+    }
+
     auto start=response.find("\r\n\r\n");
         if(start==std::string::npos){
             throw std::runtime_error("no http response\n");
         }
     response.erase(0,start+4);
+ 
 
+    
     //parse the response 
     bencodevalue res=benvaluedecode(response);
     bencodedict res_dict=std::get<bencodedict>(res.value);
@@ -97,7 +104,7 @@ class trackerclient{
 
         offset+=6;
     }
-    close(sockfd);
+    
     return 1;
 }
 };

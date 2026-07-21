@@ -17,14 +17,123 @@
 
 #include "misc.h"
 #include "torrent.h"
-#include "peer_info.h"                                      
+#include "peer_info.h"    
+#include <openssl/ssl.h>         
+
+
 //hostname=peerinfo.ip;
 //port=peerinfo.port
 #define BUFFER_LENGTH 4096
+#define HTTP 1
+#define HTTPS 2
+
+
+inline std::string handshake_http(peerinfo& peer,const std::string& GET_REQ){
+    int sockfd=connect_to_host(peer);                                               //needs error handling
+    if (sockfd == -1) {
+    throw std::runtime_error("Could not create socket");
+}
+    //
+    auto send_stat=send_all(sockfd,GET_REQ);
+
+    std::string response;                                                 //reciving the message from the host containing responses in the form of 6 bytes per peers 
+    int recv_status=recv_all(sockfd,response);                                        //4byte ip+ 2byte port
+    close (sockfd);
+    return response;
+}
+
+
+inline std::string handshake_https(peerinfo& peer,std::string& GET_REQ){
+    std::string response;
+    //i have to set up tls here
+
+    //all the things related to tls and server happen here 
+    //no need for spilling of ctx and ssl setup into tracker 
+    SSL_CTX* ctx=SSL_CTX_new((TLS_client_method()));
+    
+//
+    if(ctx==nullptr){
+        std::cerr <<"failed to create SSL_CTX";
+    }
+    SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,nullptr);
+    
+    if(!SSL_CTX_set_default_verify_paths(ctx)){
+        std::cerr <<"failed to set the default trusted certificate store\n";
+    }
+    //
+
+
+    SSL* ssl=SSL_new(ctx);
+//
+    if(ssl==nullptr){
+        std::cerr<<"unable to create ssl object";
+    }
+    int sockfd{-1};
+    BIO_ADDRINFO* results;
+
+    //peer.ip = host ip
+
+    if(!BIO_lookup_ex(peer.ip.c_str(),std::to_string(peer.port).c_str(),BIO_LOOKUP_CLIENT,AF_INET,SOCK_STREAM,0,&results))return " ";
+
+    const BIO_ADDRINFO* ai{nullptr};
+
+    for(ai==results;ai!=nullptr;ai=BIO_ADDRINFO_next(ai)){
+        sockfd=BIO_socket(BIO_ADDRINFO_family(ai),SOCK_STREAM,0,0);
+        if(sockfd==-1)continue;
+        if(!BIO_connect(sockfd,BIO_ADDRINFO_address(ai),BIO_SOCK_NODELAY)){
+            BIO_closesocket(sockfd);
+            sockfd=-1;
+            continue;
+        }
+        break;
+    }
+
+    BIO_ADDRINFO_free(results);  ///specific method to free the BIOADDRINFO structs 
+
+    BIO* bio;
+    bio=BIO_new(BIO_s_socket());
+    if(bio==nullptr){
+        BIO_closesocket(sockfd);
+        return "-4";
+    }
+
+    BIO_set_fd(bio,sockfd,BIO_CLOSE);
+    SSL_set_bio(ssl,bio,bio);
+    if(!SSL_set_tlsext_host_name(ssl,peer.ip.c_str())){
+        std::cerr<<"failed to set the SNI hostname";
+    }
+
+    if(!SSL_set1_host(ssl,peer.ip.c_str())){
+        std::cerr << "failed to connect to the server\n";
+    }
+    if(SSL_connect(ssl)<1){
+        std::cerr << "failed to connect to the server\n";
+        //cleanup
+    }
+    std::string buf;
+    size_t written;
+
+    SSL_write_ex(ssl,GET_REQ.c_str(),GET_REQ.size(),&written);
+    if(written < GET_REQ.length()){
+        std::cerr<<"msg was not sent";
+    }
+
+
+//get the response 
+    char buffer[4096];
+    size_t readbytes{0};
+    while(SSL_read_ex(ssl,buffer,4096,&readbytes)){
+    response.append(buffer,readbytes);
+    }
+    
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+    return response;
+}
 
 
 
-inline int connect_to_host(peerinfo& peer){
+inline int connect_to_host_http(peerinfo& peer){
     struct addrinfo hint{};
     struct addrinfo *results,*p;
 
@@ -59,6 +168,9 @@ inline int connect_to_host(peerinfo& peer){
 
 }
 
+inline int connect_to_host(peerinfo& peer){
+    connect_to_host_http(peer);
+}
 
 
 inline int  recv_all(int sockfd,std::string& ret){

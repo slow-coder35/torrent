@@ -326,11 +326,14 @@ std::string peerconnection::req_msg()
 {
     uint32_t len = htonl(13);
     uint32_t piece = htonl(required_pieces[curr_idx]);
-
+    uint32_t begin,blen;
+{
+    std::lock_guard<std::mutex> guard(t->bitfield_lock);
     uint32_t offset = t->active_pieces.at(required_pieces[curr_idx]).block_idx * BLOCK_LENGTH; // block_idx*block_length
-    uint32_t begin = htonl(offset);
+     begin = htonl(offset);
 
-    uint32_t blen = htonl(std::min(BLOCK_LENGTH,static_cast<int>(t->active_pieces.at(required_pieces[curr_idx]).piece_length - offset)));
+    blen = htonl(std::min(BLOCK_LENGTH,static_cast<int>(t->active_pieces.at(required_pieces[curr_idx]).piece_length - offset)));
+}
     std::vector<char> msg;
     msg.reserve(17);
 
@@ -349,7 +352,9 @@ std::string peerconnection::req_msg()
 bool verify_piece(uint32_t piece, const torrent_session *t)
 {
     std::string expected_hash = t->metadata->sha1_piece(piece);
+
     std::string obtained_hash = t->active_pieces.at(piece).hash();
+    
     if (expected_hash == obtained_hash)
         return true;
     return false;

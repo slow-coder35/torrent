@@ -30,6 +30,10 @@ class peerconnection{
 
         bool is_alive();
 
+        peerinfo pinfo(){
+            return p;
+        }
+
     
 
     private:
