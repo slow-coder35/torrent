@@ -4,6 +4,7 @@
 #include <openssl/err.h>
 #include<string>
 #include<vector>
+#include<filesystem>
 
 
 class  piece{
@@ -19,6 +20,40 @@ class  piece{
     bool downloaded;
     bool downloading;
     bool verifying;
+
+};
+
+class file{
+    public:
+        ~file(){
+            if(filefd>=0)
+            close(filefd);
+        }
+
+    std::filesystem::path path;
+    // std::string name;
+    uint64_t size;
+
+    uint64_t begin;   //where the file start in all of the torrent 
+    uint64_t end;  
+    int filefd{-1};
+
+    int create_file(){
+        int fd=open(path.c_str(),O_CREAT | O_RDWR,0644);
+            if(fd<0){
+        throw std::runtime_error ("could not create file  " + path.string() +'\n');
+    }
+    ftruncate64(fd,size);
+    filefd=fd;
+    return fd;
+    }
+    //we get a piece then i trasfer the write responsibility this itself it should give if a piece is contained in it and 
+    //how much of that is in this 
+
+    ssize_t write(const char* data,uint64_t length,uint64_t file_offset){                //starting index and ending index 
+        ssize_t written=pwrite(filefd,data,length,file_offset);
+        return written;
+    }
 
 };
 

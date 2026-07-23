@@ -77,7 +77,7 @@ inline std::string handshake_https(peerinfo& peer,std::string& GET_REQ){
 
     const BIO_ADDRINFO* ai{nullptr};
 
-    for(ai==results;ai!=nullptr;ai=BIO_ADDRINFO_next(ai)){
+    for(ai=results;ai!=nullptr;ai=BIO_ADDRINFO_next(ai)){
         sockfd=BIO_socket(BIO_ADDRINFO_family(ai),SOCK_STREAM,0,0);
         if(sockfd==-1)continue;
         if(!BIO_connect(sockfd,BIO_ADDRINFO_address(ai),BIO_SOCK_NODELAY)){

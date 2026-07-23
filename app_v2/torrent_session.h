@@ -41,12 +41,10 @@ class torrent_session{
             peer_id=generate_binary_peer_id();
             client=trackerclient(metadata,peer_id);
             mbitfield.bitfield.resize(metadata->total_pieces());
+            filemanager=file_manager(metadata->file_list(),this);
         }
 
-        ~torrent_session(){
-            if(opfd>=0)
-            close(opfd);
-        }
+
 
         uint32_t downloaded_num{0};  //can change logic for it when i add pause stop force start maybe a function to get the count when required or sstarting a new seession
         
@@ -55,8 +53,8 @@ class torrent_session{
         uint32_t downloaded_piece_count{0};
         std::map <int,activepiece> active_pieces;
         std::shared_ptr<torrent> metadata;
-        int opfd{-1};//output file discriptor
         std::string peer_id;
+        file_manager filemanager;
 
     //pass it to torrent header for processing and giving out metadata  //donr
         

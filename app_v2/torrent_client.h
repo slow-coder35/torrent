@@ -29,7 +29,7 @@ class torrent_client{
             auto session=std::make_shared<torrent_session>(metadata);
             //i have to get peers first 
             session->get_clients();
-            session->opfd=create_placeholder_file(session.get());
+            // session->opfd=create_placeholder_file(session.get());   file io is now done while initializing torrent session itself
             //get peerconnection they are not created atomatically
             session->get_connections();             //it does return an int but lets ingonre for now it sets connections and starts comunicating aswell 
             //optional file verification 

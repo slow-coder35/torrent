@@ -383,7 +383,8 @@ void peerconnection::recieve_peice(const std::string &msg)
             // move the index
             curr_idx++;
             // write it to its file
-            write_to_file(piece,t,ap.buffer);//to be implemented
+            // write_to_file(piece,t,ap.buffer);//to be implemented
+            t->filemanager.write_piece(piece,ap.buffer);
 
             {
                 std::lock_guard<std::mutex> guard(t->bitfield_lock);
