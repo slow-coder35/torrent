@@ -39,18 +39,13 @@ public:
         assign_piece_length(info_root);
         // assign piecehash
         assign_sha1_pieces(info_root);
-
-        if (multi_file)
-        {
+        
             for (auto c : file_list_)
             {
                 total_size_ += c.size;
             }
-        }
-        else
-        {
-            total_size_ = file_.size;
-        }
+
+
         total_pieces_ = (total_size_ + piece_length_ - 1) / piece_length_;
     }
 
@@ -76,10 +71,7 @@ public:
         return file_list_;
     }
     // return file_
-    const file fl()
-    {
-        return file_;
-    }
+
     // return piece_length
     const uint64_t piece_length()
     {
@@ -121,7 +113,7 @@ private:
     std::vector<std::string> announce_list_;
 
     std::vector<file> file_list_;
-    file file_;
+    
 
     std::string name_;
 
@@ -192,10 +184,13 @@ private:
         }
         else
         {
-
+            file file_;
             multi_file = false;
             file_.size = std::get<bencodeint>(info_root["length"].value);
             file_.path = std::get<bencodestring>(info_root["name"].value);
+            file_.begin=0;
+            file_.end=file_.size;
+            file_list_.push_back(file_);
         }
     }
 

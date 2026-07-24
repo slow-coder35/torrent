@@ -5,6 +5,8 @@
 #include<string>
 #include<vector>
 #include<filesystem>
+#include<fcntl.h>
+#include<unistd.h>
 
 
 class  piece{
@@ -39,6 +41,8 @@ class file{
     int filefd{-1};
 
     int create_file(){
+        std::filesystem::create_directories(path.parent_path());
+
         int fd=open(path.c_str(),O_CREAT | O_RDWR,0644);
             if(fd<0){
         throw std::runtime_error ("could not create file  " + path.string() +'\n');

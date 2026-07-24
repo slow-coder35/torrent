@@ -61,7 +61,7 @@ class trackerclient{
 
     //needs refactoring 
     //should go into http or https 
-    int scheme=(host.scheme=="HTTP"?1:2);
+    int scheme=(host.scheme=="http"?1:2);
 
     std::string response;
 

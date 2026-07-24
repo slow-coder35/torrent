@@ -28,20 +28,40 @@
 #define HTTPS 2
 
 
-inline std::string handshake_http(peerinfo& peer,const std::string& GET_REQ){
-    int sockfd=connect_to_host(peer);                                               //needs error handling
-    if (sockfd == -1) {
-    throw std::runtime_error("Could not create socket");
-}
-    //
-    auto send_stat=send_all(sockfd,GET_REQ);
+inline int connect_to_host(peerinfo& peer){
+    struct addrinfo hint{};
+    struct addrinfo *results,*p;
 
-    std::string response;                                                 //reciving the message from the host containing responses in the form of 6 bytes per peers 
-    int recv_status=recv_all(sockfd,response);                                        //4byte ip+ 2byte port
-    close (sockfd);
-    return response;
-}
+    hint.ai_family=AF_INET;
+    hint.ai_socktype=SOCK_STREAM;
 
+    int status=getaddrinfo(peer.ip.c_str(),std::to_string(peer.port).c_str(),&hint,&results);
+    if(status!=0){
+        std::cerr<<"failed to fetch\n";
+        //freeaddrinfo(results);
+        return -1;
+    }
+    p=results;
+
+    int c_status{-1},sockfd{-1};
+    while((c_status==-1 || sockfd==-1) && p!=nullptr){
+        if(sockfd>0) close(sockfd);
+        sockfd=socket(p->ai_family,p->ai_socktype,0);
+        c_status=connect(sockfd,p->ai_addr,p->ai_addrlen);
+
+        p=p->ai_next;    
+    }
+
+    if(c_status==-1){
+        std::cerr << "failed to connect\n";
+        freeaddrinfo(results);
+        return -1;
+    }
+    freeaddrinfo(results);
+
+    return sockfd;
+
+}
 
 inline std::string handshake_https(peerinfo& peer,std::string& GET_REQ){
     std::string response;
@@ -133,44 +153,9 @@ inline std::string handshake_https(peerinfo& peer,std::string& GET_REQ){
 
 
 
-inline int connect_to_host_http(peerinfo& peer){
-    struct addrinfo hint{};
-    struct addrinfo *results,*p;
 
-    hint.ai_family=AF_INET;
-    hint.ai_socktype=SOCK_STREAM;
 
-    int status=getaddrinfo(peer.ip.c_str(),std::to_string(peer.port).c_str(),&hint,&results);
-    if(status!=0){
-        std::cerr<<"failed to fetch\n";
-        //freeaddrinfo(results);
-        return -1;
-    }
-    p=results;
 
-    int c_status{-1},sockfd{-1};
-    while((c_status==-1 || sockfd==-1) && p!=nullptr){
-        if(sockfd>0) close(sockfd);
-        sockfd=socket(p->ai_family,p->ai_socktype,0);
-        c_status=connect(sockfd,p->ai_addr,p->ai_addrlen);
-
-        p=p->ai_next;    
-    }
-
-    if(c_status==-1){
-        std::cerr << "failed to connect\n";
-        freeaddrinfo(results);
-        return -1;
-    }
-    freeaddrinfo(results);
-
-    return sockfd;
-
-}
-
-inline int connect_to_host(peerinfo& peer){
-    connect_to_host_http(peer);
-}
 
 
 inline int  recv_all(int sockfd,std::string& ret){
@@ -215,6 +200,19 @@ inline int send_all(int sockfd, const std::string& data){
 }
 
 
+inline std::string handshake_http(peerinfo& peer,const std::string& GET_REQ){
+    int sockfd=connect_to_host(peer);                                               //needs error handling
+    if (sockfd == -1) {
+    throw std::runtime_error("Could not create socket");
+}
+    //
+    auto send_stat=send_all(sockfd,GET_REQ);
+
+    std::string response;                                                 //reciving the message from the host containing responses in the form of 6 bytes per peers 
+    int recv_status=recv_all(sockfd,response);                                        //4byte ip+ 2byte port
+    close (sockfd);
+    return response;
+}
 
 
 
