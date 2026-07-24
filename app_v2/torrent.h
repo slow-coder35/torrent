@@ -24,9 +24,9 @@ public:
         // assign announce list
         if (root.count("announce-list"))
         {
-            bencodevalue announce_lt = root["announce-list"];
-            bencodelist announce_list = std::get<bencodelist>(announce_lt.value);
-            assign_announce_list(announce_list);
+            // bencodevalue announce_lt = root["announce-list"];
+            // bencodelist announce_list = std::get<bencodelist>(announce_lt.value);
+            // assign_announce_list(announce_list);
         }
         // assign file_list_
         bencodevalue info_rt = root["info"];

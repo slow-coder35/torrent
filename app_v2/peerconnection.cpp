@@ -8,6 +8,24 @@
 #include "torrent_session.h"
 
 
+
+
+        peerconnection::~peerconnection(){
+            if(curr_idx < required_pieces.size()){
+                std::lock_guard<std::mutex> guard(t->bitfield_lock);
+                if(t->active_pieces.erase(required_pieces[curr_idx])){
+                    t->mbitfield.bitfield[required_pieces[curr_idx]].to_download=true;
+
+                }
+            }
+            
+        }
+
+
+
+
+
+
 // get a piece in our bitfeild
 
 bool peerconnection::connect()
@@ -311,8 +329,8 @@ void peerconnection::request_piece()
         }
         // start download of the pid in the buffer i,e send the request message to the peer  then ull get data in return by message recieve_piece;
         if (pid != -1)
-            send_all(sock_fd, req_msg());
-            // std::cout <<req_msg()<<'\n';
+            if(send_all(sock_fd, req_msg())>0) outstanding_requests++ ;   //okay as its only per thread
+            if(outstanding_requests<5) request_piece();
     }
 
     else if (curr_idx >= required_pieces.size())
@@ -362,6 +380,8 @@ bool verify_piece(uint32_t piece, const torrent_session *t)
 
 void peerconnection::recieve_peice(const std::string &msg)
 {
+
+    outstanding_requests--;
 
     uint32_t piece, begin;
     std::cout<< "reciving_piece ";

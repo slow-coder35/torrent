@@ -8,6 +8,8 @@
 #include"networking.h"
 // #include "torrent_session.h"
 #include"misc.h"
+#include <atomic>
+#include<mutex>
 
                  //have to figure oiut why is it needed even after include torrent_session.h
 class torrent_session;
@@ -19,6 +21,7 @@ class peerconnection{
         }
         peerconnection(std::shared_ptr<torrent> torr):torr(torr){}
 
+        ~peerconnection();
 
 
 
@@ -44,6 +47,8 @@ class peerconnection{
         std::vector<uint32_t> required_pieces;
         uint32_t curr_idx;//idx in required_pieces not piece no
         torrent_session* t;
+        int outstanding_requests{0};
+        
 
 
         bool mintrested{false};

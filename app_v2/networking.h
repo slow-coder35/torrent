@@ -18,7 +18,8 @@
 #include "misc.h"
 #include "torrent.h"
 #include "peer_info.h"    
-#include <openssl/ssl.h>         
+#include <openssl/ssl.h>
+#include<endian.h>       
 
 
 //hostname=peerinfo.ip;
@@ -153,6 +154,48 @@ inline std::string handshake_https(peerinfo& peer,std::string& GET_REQ){
 
 
 
+inline int udp_connect(peerinfo& peer){
+    
+
+    // if(sockfd==-1)(
+    //     throw runtime_error "could not create udp socket";
+    // )
+    struct addrinfo hint{};
+    struct addrinfo *results,*p;
+
+    hint.ai_family=AF_INET;
+    hint.ai_socktype=SOCK_DGRAM;
+
+    int status=getaddrinfo(peer.ip.c_str(),std::to_string(peer.port).c_str(),&hint,&results);
+    if(status!=0){
+        std::cerr<<"failed to fetch\n";
+        //freeaddrinfo(results);
+        return -1;
+    }
+    p=results;
+
+    int c_status{-1},sockfd{-1};
+    while((c_status==-1 || sockfd==-1) && p!=nullptr){
+        if(sockfd>=0) close(sockfd);
+        sockfd=socket(p->ai_family,p->ai_socktype,0);
+        c_status=connect(sockfd,p->ai_addr,p->ai_addrlen);
+
+        p=p->ai_next;    
+    }
+
+    if(c_status==-1){
+        std::cerr << "failed to connect\n";
+        freeaddrinfo(results);
+        return -1;
+    }
+    freeaddrinfo(results);
+   
+
+    return sockfd;
+}
+
+
+
 
 
 
@@ -252,7 +295,12 @@ inline struct url_parts parse_url(std::string_view url_str){
     url_str.remove_prefix(scheme_end+3);
 
     auto slash=url_str.find(":");
-    if(slash==std::string::npos) throw std::runtime_error("Invalid URL\n");
+    if(slash==std::string::npos) {
+        auto pt=url_str.find('/');
+        ret.host=url_str.substr(0,pt);
+        ret.path=url_str.substr(pt);
+        return ret;
+    }
     ret.host=url_str.substr(0,slash);
     url_str.remove_prefix(slash+1);
 

@@ -7,7 +7,7 @@
 #include<filesystem>
 #include<fcntl.h>
 #include<unistd.h>
-
+#include <endian.h>
 
 class  piece{
 
@@ -25,6 +25,10 @@ class  piece{
 
 };
 
+
+
+
+
 class file{
     public:
         ~file(){
@@ -41,8 +45,9 @@ class file{
     int filefd{-1};
 
     int create_file(){
+        if(!path.parent_path().empty()){
         std::filesystem::create_directories(path.parent_path());
-
+        }
         int fd=open(path.c_str(),O_CREAT | O_RDWR,0644);
             if(fd<0){
         throw std::runtime_error ("could not create file  " + path.string() +'\n');
@@ -60,6 +65,51 @@ class file{
     }
 
 };
+
+
+class writer{
+    public:
+        writer(){}
+
+        void write_64(uint64_t i){
+            i=htobe64(i);
+            auto* p=reinterpret_cast<const uint8_t*> (&i);
+            data.insert(data.end(),p,p+8);
+        }
+
+        void write_32(uint32_t i){
+            i=htobe32(i);
+            auto *p=reinterpret_cast<const uint8_t*> (&i);
+            data.insert(data.end(),p,p+4);
+        }
+        void write_str(const std::string& str){
+            data.insert(data.end(),str.begin(),str.end());
+        }
+        void write_16(uint16_t i){
+            i=htobe16(i);
+            auto* p=reinterpret_cast<uint8_t*> (&i);
+            data.insert(data.end(),p,p+2);
+        }
+
+        const std::vector<uint8_t>& value(){
+            return data;
+        }
+        const size_t size(){
+            return data.size();
+        }
+
+
+
+
+
+    private:
+        std::vector<uint8_t> data;
+
+};
+
+
+
+
 
 
 inline std::string sha1_hash(const std::string& data){
