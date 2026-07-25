@@ -286,31 +286,55 @@ struct url_parts{
 
 
 
-inline struct url_parts parse_url(std::string_view url_str){
-    struct url_parts ret{};
-    auto scheme_end=url_str.find("://");
-    if(scheme_end==std::string::npos) throw std::runtime_error("Invalid URL\n");
-    ret.scheme=url_str.substr(0,scheme_end);
-    
-    url_str.remove_prefix(scheme_end+3);
+inline url_parts parse_url(std::string_view url_str) {
+    url_parts ret{};
 
-    auto slash=url_str.find(":");
-    if(slash==std::string::npos) {
-        auto pt=url_str.find('/');
-        ret.host=url_str.substr(0,pt);
-        ret.path=url_str.substr(pt);
+    auto scheme_end = url_str.find("://");
+    if (scheme_end == std::string_view::npos)
+        throw std::runtime_error("Invalid URL");
+
+    ret.scheme = url_str.substr(0, scheme_end);
+    url_str.remove_prefix(scheme_end + 3);
+
+    auto colon = url_str.find(':');
+    auto slash = url_str.find('/');
+
+    if (colon == std::string_view::npos) {
+        // host[/path]
+
+        if (slash == std::string_view::npos) {
+            ret.host = url_str;
+        } else {
+            ret.host = url_str.substr(0, slash);
+            ret.path = url_str.substr(slash);
+        }
+
         return ret;
     }
-    ret.host=url_str.substr(0,slash);
-    url_str.remove_prefix(slash+1);
 
-    auto pt=url_str.find('/');
-    if(pt==std::string::npos) throw std::runtime_error("Invalid URL\n");
-    ret.port=url_str.substr(0,pt);
-    ret.path = url_str.substr(pt);
+    // host:...
+
+    ret.host = url_str.substr(0, colon);
+    url_str.remove_prefix(colon + 1);
+
+    slash = url_str.find('/');
+
+    if (slash == std::string_view::npos) {
+        // host:port
+
+        ret.port = url_str;
+        return ret;
+    }
+
+    // host:port/path
+
+    ret.port = url_str.substr(0, slash);
+    ret.path = url_str.substr(slash);
 
     return ret;
-}   
+}
+
+
 
 
 

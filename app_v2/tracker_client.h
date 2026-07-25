@@ -50,6 +50,8 @@ class trackerclient{
     }
 
     peerinfo temp;
+    temp.ip=host.host;
+    temp.port = static_cast<uint16_t>(std::stoi(std::string(host.port)));
 
     auto sh=torr->info_value();           //hash all the sha1 hashes in pieces:
                                  //total length of the torrent
@@ -69,9 +71,7 @@ class trackerclient{
     "Connection: close\r\n" +
     "\r\n";
 
-    peerinfo temp;
-    temp.ip=host.host;                                                            //connect to the host server which distributes peers
-    temp.port=static_cast<uint16_t>(std::stoi(host.port));
+
     
     //////
 
@@ -100,25 +100,36 @@ class trackerclient{
         }
     response.erase(0,start+4);
     }
-    else {
+    else  if(host.scheme=="udp"){
 
         response = udp_clients(temp);
         if(response.size()==0){
             std::runtime_error (" no seeders found\n");
         }
     }
+    else {
+        throw std::runtime_error ("protocol not supported\n");
+    }
 
 
 
  
-
+bencodestring peer;
     
-    //parse the response 
+    //parse the response  only for http or https only it is bencoded udp is not
+if(host.scheme=="http"||  host.scheme=="https"){
     bencodevalue res=benvaluedecode(response);
     bencodedict res_dict=std::get<bencodedict>(res.value);
 
     auto peers_list=res_dict["peers"];
-    bencodestring peer=std::get<bencodestring>(peers_list.value);                        //extracting the peers irrrespective of their coonectivity
+    peer=std::get<bencodestring>(peers_list.value); //extracting the peers irrrespective of their coonectivity
+}
+else if(host.scheme=="udp"){
+    peer = response;
+}
+    
+    
+    
     int peer_list_length=peer.size();
     int peer_count=peer.size()/6;
     int offset{0};
@@ -151,7 +162,6 @@ std::string udp_clients(peerinfo& peer){
 
     uint32_t action = 0;
     uint32_t transaction_id = random();
-    protocol_id=htobe64(protocol_id);
     action=htonl(action);
     transaction_id=htonl(action);
 
@@ -162,19 +172,19 @@ std::string udp_clients(peerinfo& peer){
     initiate.write_32(transaction_id);
 
 
-    send(sockfd, initiate.value().data(), initiate.size(), 0);
+    int send_st=send(sockfd, initiate.value().data(), initiate.size(), 0);
 
-    std::uint8_t buffer[16];
-    ssize_t n = recv(sockfd, buffer, sizeof(buffer), 0);
+    // std::uint8_t buffer[16];
+    // ssize_t n = recv(sockfd, buffer, sizeof(buffer), 0);
 
-    char response[16];
-    recv(sockfd, response, 16, 0);
+    char resp[16];
+    ssize_t n=recv(sockfd, resp, 16, 0);
 
-    uint32_t action_recieved{-1};
-    memcpy(&action_recieved, response, 4);
+    uint32_t action_recieved;
+    memcpy(&action_recieved, resp, 4);
     action_recieved = ntohl(action_recieved);
     uint32_t transaction_id_recieved;
-    memcpy(&transaction_id_recieved, response + 4, 4);
+    memcpy(&transaction_id_recieved, resp + 4, 4);
     transaction_id_recieved = ntohl(transaction_id_recieved);
 
     if (action_recieved != 0 || transaction_id_recieved != transaction_id)
@@ -183,7 +193,7 @@ std::string udp_clients(peerinfo& peer){
         return "";
     }
 uint64_t connection_id;
-memcpy(&connection_id,response+8,8);
+memcpy(&connection_id,resp+8,8);
 connection_id=be64toh(connection_id);
 
 /*
@@ -247,7 +257,6 @@ action_recieved=ntohl(action_recieved);
 if(transaction_id!=transaction_id_recieved){
     std::runtime_error("invalid response\n");
 }
-std::string response;
 std::string response(reinterpret_cast<char*>(buf + 20),recv_stat - 20);
 return response;
 }
