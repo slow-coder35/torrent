@@ -16,12 +16,13 @@ class  piece{
 
     uint32_t id;
 
-
+    int frequency{0};
     
-    bool to_download{true};
-    bool downloaded;
-    bool downloading;
-    bool verifying;
+    enum{
+        to_download,
+        downloading,
+        downloaded
+    }status=to_download;
 
 };
 
@@ -135,22 +136,23 @@ class bit_f{
 
         std::vector<piece> bitfield;
 
-        bool has(uint32_t piece_id){
+        bool const has( uint32_t piece_id){
             // int byte=piece_id/8;
             // int bit=piece_id%8;
-            return bitfield[piece_id].downloaded;
+            return bitfield[piece_id].status==piece::downloaded;
         }
+        
 
         void set(uint32_t piece_id){
             // int byte=piece_id/8;
             // int bit=piece_id%8;
-            bitfield[piece_id].downloaded=true;
+            bitfield[piece_id].status=piece::downloaded;
         }
 
         void unset(uint32_t piece_id){
             // int byte=piece_id/8;
             // int bit=piece_id%8;
-            bitfield[piece_id].downloaded=true;
+            bitfield[piece_id].status=piece::to_download;
            
         }
 

@@ -14,7 +14,7 @@
             if(curr_idx < required_pieces.size()){
                 std::lock_guard<std::mutex> guard(t->bitfield_lock);
                 if(t->active_pieces.erase(required_pieces[curr_idx])){
-                    t->mbitfield.bitfield[required_pieces[curr_idx]].to_download=true;
+                    t->mbitfield.bitfield[required_pieces[curr_idx]].status=piece::to_download;
 
                 }
             }
@@ -232,15 +232,18 @@ void peerconnection::recieve_bitfeild(const std::string &msg)
     // pbitfield.bitfield.assign(msg.begin()+1,msg.end());\
 
     pbitfield.bitfield.resize(torr->total_pieces());
+
     std::cout <<"bitfield is recieved\n";
+    
     for (uint32_t i = 0; i < torr->total_pieces(); i++)
     {
         int byte = i / 8;
         int bit = 7 - (i % 8);
 
         bool has_piece = msg[1 + byte] & (1 << bit);
-        pbitfield.bitfield[i].downloaded = has_piece;
+        pbitfield.bitfield[i].status=piece::downloaded;
         pbitfield.bitfield[i].id = i;
+        t->piece_manager.add(i);
     }
     // compare our bitfeilds and set mintrested if he has peices we dont have
 
@@ -250,7 +253,9 @@ void peerconnection::recieve_bitfeild(const std::string &msg)
         {
             required_pieces.push_back(i);
         }
-    }
+    }  //redundant once piecemangaer works
+
+
     std::cout<<msg.size()<<'\n';
     mintrested = (!required_pieces.empty());
     curr_idx = 0;
@@ -307,10 +312,9 @@ void peerconnection::request_piece()
         {
             std::lock_guard<std::mutex> guard(t->bitfield_lock);
 
-            if (t->mbitfield.bitfield[required_pieces[curr_idx]].to_download)
+            if (t->mbitfield.bitfield[required_pieces[curr_idx]].status=piece::to_download)
             {
-                t->mbitfield.bitfield[required_pieces[curr_idx]].to_download = false;
-                t->mbitfield.bitfield[required_pieces[curr_idx]].downloading = true;
+                t->mbitfield.bitfield[required_pieces[curr_idx]].status=piece::to_download;
                 pid = t->mbitfield.bitfield[required_pieces[curr_idx]].id;
                 t->active_pieces.emplace(required_pieces[curr_idx], activepiece(required_pieces[curr_idx], torr->piece_length()));
                 t->active_pieces.at(required_pieces[curr_idx]).buffer.resize(required_pieces[curr_idx]==t->metadata->total_pieces()-1
@@ -408,10 +412,7 @@ void peerconnection::recieve_peice(const std::string &msg)
 
             {
                 std::lock_guard<std::mutex> guard(t->bitfield_lock);
-                t->mbitfield.bitfield[piece].downloaded = true;
-                t->mbitfield.bitfield[piece].downloading = false;
-                t->mbitfield.bitfield[piece].verifying = false;
-                t->mbitfield.bitfield[piece].to_download = false;
+                t->mbitfield.bitfield[piece].status=piece::downloaded;
                 // flush the piece related variables back to default or just destroy the active piece
                 t->active_pieces.erase(piece);
                 std::cout <<"recieved_piece:"<<piece<<'\n';

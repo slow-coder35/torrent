@@ -36,11 +36,11 @@ class torrent_session{
     
     
     public:
-        torrent_session(std::shared_ptr<torrent> metadata):metadata(metadata){
+        torrent_session(std::shared_ptr<torrent> metadata):metadata(metadata):piece_manager(metadata->total_pieces()){
             t=this;
             peer_id=generate_binary_peer_id();
             client=trackerclient(metadata,peer_id);
-            mbitfield.bitfield.resize(metadata->total_pieces());
+            // mbitfield.bitfield.resize(metadata->total_pieces());
             filemanager=file_manager(metadata->file_list(),this);
         }
 
@@ -48,8 +48,11 @@ class torrent_session{
 
         uint32_t downloaded_num{0};  //can change logic for it when i add pause stop force start maybe a function to get the count when required or sstarting a new seession
         
+
+        piecemanager piece_manager;  
+
         bit_f mbitfield;
-        std::mutex bitfield_lock;
+        std::mutex bitfield_lock;    //rename to active pieces others are not needed anymore 
         uint32_t downloaded_piece_count{0};
         std::map <int,activepiece> active_pieces;
         std::shared_ptr<torrent> metadata;
