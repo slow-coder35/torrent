@@ -27,17 +27,15 @@ class torrent_client{
             auto metadata = std::make_shared<torrent>(data);//data is passed and torrent meta data is complete
             
             auto session=std::make_shared<torrent_session>(metadata);
-            //i have to get peers first 
-            session->get_clients();
-            // session->opfd=create_placeholder_file(session.get());   file io is now done while initializing torrent session itself
-            //get peerconnection they are not created atomatically
-            session->get_connections();             //it does return an int but lets ingonre for now it sets connections and starts comunicating aswell 
-            //optional file verification 
-            //wait for threads to end
-            session->start_communication(); //startss communication
+            session->start();
+            // session->keep_downloading();
             session->wait_to_finish();
-            // sessions.push_back(session);            //torrent is already done atp
         }
+
+
+
+
+
 
     private:
         std::vector<std::shared_ptr<torrent_session>> sessions;

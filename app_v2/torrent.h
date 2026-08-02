@@ -44,9 +44,11 @@ public:
             {
                 total_size_ += c.size;
             }
-
+            
 
         total_pieces_ = (total_size_ + piece_length_ - 1) / piece_length_;
+
+ 
     }
 
     bool multifile() const
@@ -120,8 +122,8 @@ private:
     uint32_t piece_length_;
 
     std::string pieces_sha1_hash_;
-    uint64_t total_size_;
-    uint64_t total_pieces_; //=(totall_size+piece_length-1)/piece_length
+    uint64_t total_size_{0};
+    uint64_t total_pieces_{0}; //=(totall_size+piece_length-1)/piece_length
     std::string info_hash_; // have to assign it here itself have to do some mani to make it work
 
     bool multi_file;
@@ -178,6 +180,7 @@ private:
                 tp.begin=offset;
                 offset+=tp.size;
                 tp.end=offset;
+                
                 file_list_.push_back(tp);
                 
             }
@@ -187,9 +190,11 @@ private:
             file file_;
             multi_file = false;
             file_.size = std::get<bencodeint>(info_root["length"].value);
+            total_size_=file_.size;
             file_.path = std::get<bencodestring>(info_root["name"].value);
             file_.begin=0;
             file_.end=file_.size;
+            total_pieces_=(total_size_+piece_length_-1)/piece_length_;
             file_list_.push_back(file_);
         }
     }

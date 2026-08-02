@@ -20,7 +20,7 @@
 #include "peer_info.h"    
 #include <openssl/ssl.h>
 #include<endian.h>       
-
+#include<fcntl.h>
 
 //hostname=peerinfo.ip;
 //port=peerinfo.port
@@ -28,6 +28,17 @@
 #define HTTP 1
 #define HTTPS 2
 
+
+
+
+
+
+inline bool convert_to_non_blocking(int sockfd){
+    int flags=fcntl(sockfd,F_GETFL,0);
+    if(flags==-1) return false;
+
+    return fcntl(sockfd,F_SETFL,flags | O_NONBLOCK)!=-1;
+}
 
 inline int connect_to_host(peerinfo& peer){
     struct addrinfo hint{};
@@ -153,6 +164,92 @@ inline std::string handshake_https(peerinfo& peer,std::string& GET_REQ){
 }
 
 
+inline ConnectResult connect_to_host_non_blocking(peerinfo& peer)
+{
+    addrinfo hint{};
+    addrinfo* results = nullptr;
+
+    hint.ai_family   = AF_INET;
+    hint.ai_socktype = SOCK_STREAM;
+
+    int status = getaddrinfo(
+        peer.ip.c_str(),
+        std::to_string(peer.port).c_str(),
+        &hint,
+        &results
+    );
+
+    if (status != 0)
+        return {ConnectStatus::FAILED, -1};
+
+    for (addrinfo* p = results; p != nullptr; p = p->ai_next) {
+
+        int sockfd = socket(
+            p->ai_family,
+            p->ai_socktype,
+            p->ai_protocol
+        );
+
+        if (sockfd < 0)
+            continue;
+
+        if (!convert_to_non_blocking(sockfd)) {
+            close(sockfd);
+            continue;
+        }
+
+        int ret = connect(sockfd, p->ai_addr, p->ai_addrlen);
+        std::cout<<"reached\n";
+        int connect_errno = errno; // save immediately
+
+        std::cerr << "connect ret = " << ret
+                  << " errno = " << connect_errno
+                  << " (" << strerror(connect_errno) << ")\n";
+
+        if (ret == 0)
+        {
+            // instant connection
+        }
+
+        if (ret == -1 && connect_errno == EINPROGRESS)
+        {
+            // normal nonblocking connection
+        }
+
+        std::cerr << "actual connect failure: "
+                  << strerror(connect_errno) << '\n';
+
+        if (ret == 0) {
+            // Connected instantly
+            freeaddrinfo(results);
+
+            return {
+                ConnectStatus::CONNECTED,
+                sockfd
+            };
+        }
+
+        if (errno == EINPROGRESS) {
+            // Connection still happening
+            freeaddrinfo(results);
+
+            return {
+                ConnectStatus::IN_PROGRESS,
+                sockfd
+            };
+        }
+
+        // This address failed
+        close(sockfd);
+    }
+
+    freeaddrinfo(results);
+
+    return {
+        ConnectStatus::FAILED,
+        -1
+    };
+}
 
 inline int udp_connect(peerinfo& peer){
     
@@ -236,7 +333,11 @@ inline int send_all(int sockfd, const std::string& data){
     size_t total_sent = 0;
     while(total_sent < data.length()){
         int result = send(sockfd, data.c_str() + total_sent, data.length() - total_sent, 0);
-        if(result <= 0) return -1;
+        if(result <= 0){
+            if(result==-1){
+                    //
+            }
+        }
         total_sent += result;
     }
     return static_cast<int>(total_sent);

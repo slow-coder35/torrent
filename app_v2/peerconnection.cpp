@@ -7,52 +7,51 @@
 #include "peerconnection.h"
 #include "torrent_session.h"
 
+peerconnection::~peerconnection()
+{   
 
-
-
-        peerconnection::~peerconnection(){
-            if(curr_idx < required_pieces.size()){
-                std::lock_guard<std::mutex> guard(t->bitfield_lock);
-                if(t->active_pieces.erase(required_pieces[curr_idx])){
-                    t->mbitfield.bitfield[required_pieces[curr_idx]].status=piece::to_download;
-
-                }
-            }
-            
+    if(!pbitfield.bitfield.empty()){
+    for (uint32_t i = 0; i < t->metadata->total_pieces(); i++)
+    {
+        if (pbitfield.has(i))
+        {
+            t->piece_manager.decrease(i);
         }
+    }
+}
 
+    close(sock_fd);
 
-
-
-
+}
 
 // get a piece in our bitfeild
 
-bool peerconnection::connect()
-{   
 
-    sock_fd=connect_to_host(p);
 
-    int send_stat = send_handshake(t->peer_id);//have to put client sself peer if in the arguments
-    if (send_stat == 0 || send_stat == -1)
-        return false; // failed to create socket  or failed to send the handshake
 
-    int recv_stat = recieve_handshake();
-    if (recv_stat == -1)
-    {
-        close(sock_fd);
-        return false;
-    }
-    alive_ = true;
-    return true;
+void peerconnection::connect()
+{ 
+
+auto result = connect_to_host_non_blocking(p);
+    status=result.status;
+    sock_fd=result.sockfd;
+
+
 }
+
+
+
+
 
 bool peerconnection::is_alive()
 {
     return alive_;
 }
 
-int peerconnection::recieve_handshake()
+
+
+
+bool peerconnection::recieve_handshake()
 {
     std::string reply;
     int recv_status = recv_s(sock_fd, reply, 68);
@@ -69,62 +68,113 @@ int peerconnection::recieve_handshake()
         return -1;
     }
     p.id = reply.substr(48, 20);
-    return 1;
+        alive_ = true;
+    return true;
 }
 
-int peerconnection::send_handshake(const std::string &self_peer_id)
+
+
+void peerconnection::send_handshake(const std::string &self_peer_id)
 {
     // send the handshake message recieve the message if successful connect it and return the peerconnection
-    sock_fd = connect_to_host(p);
-
     if (sock_fd == -1)
     {
-        return 0;
+        return ;
     }
+    std::cout << "queing b torrent handshake\n";
+    // handshake.push_back(19);            // 0x13
+    // handshake += "BitTorrent protocol"; // 19 bytes
+    // handshake.append(8, '\0');          // 8 zero bytes
+    // handshake += torr->info_hash();     // 20 bytes
+    // handshake += self_peer_id;          // 20 bytes
 
-    std::string handshake;
+    writer handshake;
+    handshake.write_8(19);
+    handshake.write_str("BitTorrent protocol");
+    handshake.write_64(0);
+    handshake.write_str(torr->info_hash());
+    handshake.write_str(self_peer_id);
 
-    handshake.push_back(19);            // 0x13
-    handshake += "BitTorrent protocol"; // 19 bytes
-    handshake.append(8, '\0');          // 8 zero bytes
-    handshake += torr->info_hash();     // 20 bytes
-    handshake += self_peer_id;          // 20 bytes
-
-    int send_status = send_all(sock_fd, handshake);
-    if (send_status <= 0)
+    pending_messages msg;
+    msg.data=handshake.value();
+    msg.sent=0;
+    msg.process="sendhandshake";
     {
-        // send failed
-        close(sock_fd);
+    std::lock_guard<std::mutex> guard(send_que_mtx);
+    send_queue.push_back(msg);
+    //add a flush
     }
-
-    return send_status <= 0 ? -1 : 1;
 }
 
-void peerconnection::communication()
+// void peerconnection::communication()
+// {
+
+//     while (downloaded_num < t->metadata->total_pieces())
+//     {
+//         {
+//             std::lock_guard<std::mutex> guard(t->bitfield_lock);
+//             downloaded_num = t->downloaded_piece_count;
+//         }
+
+//         // Can we parse a complete message already?
+//         if (buf.size() >= 4)
+//         {
+
+//             uint32_t len;
+//             std::memcpy(&len, buf.data(), 4);
+//             len = ntohl(len);
+
+//             // Do we have the whole message?
+//             if (buf.size() >= 4 + len)
+//             {
+//                 std::string msg = buf.substr(4, len);
+
+//                 // Remove the processed message from the buffer
+//                 buf.erase(0, 4 + len);
+
+//                 process_message(msg);
+
+//                 // another complete message
+//                 continue;
+//             }
+//         }
+
+//         // Need more bytes
+//         char temp[4096];
+//         int n = recv(sock_fd, temp, sizeof(temp), 0);
+
+//         if (n == 0)
+//         {
+//             // Peer closed the connection
+//             alive_ = false;
+//             // close the connection
+//             break;
+//         }
+//         else if (n == -1 && (errno == EAGAIN || EWOULDBLOCK))
+//         {
+//             // nothing more rn consume the stream then push the message back
+//         }
+//         else if (n == -1)
+//         {
+//             // close the peer
+//             perror("recv");
+//         }
+
+//         buf.append(temp, n);
+//     }
+// }
+
+void peerconnection::on_recv()
 {
-    std::string buf;
 
-    
-    int downloaded_num{0};
-
-    while (downloaded_num<t->metadata->total_pieces())
-    {   
-        {
-        std::lock_guard<std::mutex> guard(t->bitfield_lock);
-        downloaded_num=t->downloaded_piece_count;
-    }
-
-        // Can we parse a complete message already?
+    while (true)
+    {
         if (buf.size() >= 4)
         {
-            
-            
 
             uint32_t len;
             std::memcpy(&len, buf.data(), 4);
             len = ntohl(len);
-
-
 
             // Do we have the whole message?
             if (buf.size() >= 4 + len)
@@ -142,34 +192,42 @@ void peerconnection::communication()
         }
 
         // Need more bytes
-        char temp[4096];
-        int n = recv(sock_fd, temp, sizeof(temp), 0);
+        std::array<char,16384> temp;
+        int n = recv(sock_fd, temp.data(),temp.size(), 0);
+        
 
         if (n == 0)
         {
             // Peer closed the connection
             alive_ = false;
+            
+            // close the connection
             break;
-        }
+            //destroy the threadaswell
 
-        if (n < 0)
+        }
+        else if (n == -1 && (errno == EAGAIN || EWOULDBLOCK))
         {
-            // Error
+            // nothing more rn consume the stream then push the message back
+            break;
+        }
+        else if (n == -1)
+        {
+            // close the peer
             perror("recv");
+            alive_=false;
             break;
         }
 
-        buf.append(temp, n);
+        buf.append(temp.data(), n);
     }
-    std::cout<<"-------------download finished---------------\n";
-
 }
 
 void peerconnection::process_message(const std::string &msg)
 {
-    if(msg.empty()) return ; //keep alive
+    if (msg.empty())
+        return; // keep alive
     unsigned char id = msg[0];
-
 
     switch (id)
     {
@@ -213,7 +271,7 @@ void peerconnection::recieve_choke()
 void peerconnection::recieve_unchoke()
 {
     pchoking = false;
-    std::cout <<"recieved unchoke\n";
+    std::cout << "recieved unchoke\n";
     request_piece();
 }
 
@@ -233,52 +291,45 @@ void peerconnection::recieve_bitfeild(const std::string &msg)
 
     pbitfield.bitfield.resize(torr->total_pieces());
 
-    std::cout <<"bitfield is recieved\n";
-    
+    std::cout << "bitfield is recieved\n";
+
     for (uint32_t i = 0; i < torr->total_pieces(); i++)
     {
         int byte = i / 8;
         int bit = 7 - (i % 8);
 
         bool has_piece = msg[1 + byte] & (1 << bit);
-        pbitfield.bitfield[i].status=piece::downloaded;
+        pbitfield.bitfield[i].status = piece::downloaded;
         pbitfield.bitfield[i].id = i;
         t->piece_manager.add(i);
     }
     // compare our bitfeilds and set mintrested if he has peices we dont have
 
-    for (int i = 0; i < torr->total_pieces(); i++)
+    std::cout << msg.size() << '\n';
+    mintrested = (t->torrent_complete);
+
+    writer intrested_msg;
+    intrested_msg.write_32(1);
+    intrested_msg.write_8(2);
+    pending_messages temp;
+    temp.add(intrested_msg);
+    // send_all(sock_fd, {intrested_msg.value().begin(),intrested_msg.value().end()});
+
     {
-        if (!t->mbitfield.has(i) && pbitfield.has(i))
-        {
-            required_pieces.push_back(i);
-        }
-    }  //redundant once piecemangaer works
-
-
-    std::cout<<msg.size()<<'\n';
-    mintrested = (!required_pieces.empty());
-    curr_idx = 0;
-    
-    uint32_t len = htonl(1);
-    std::string interested_msg(reinterpret_cast<char *>(&len),4);
-    interested_msg.push_back(2);
-    send_all(sock_fd, interested_msg);
+        std::lock_guard<std::mutex> guard(send_que_mtx);
+        send_queue.push_back(temp);
+    }
 }
 
 void peerconnection::recieve_have(const std::string &msg)
-{   
+{
 
-    
     uint32_t piece_index;
     std::memcpy(&piece_index, msg.data() + 1, sizeof(piece_index));
     piece_index = ntohl(piece_index);
-    std::cout<<"recieved a have msg"<<" piece_id"<<piece_index<<'\n';
+    std::cout << "recieved a have msg" << " piece_id" << piece_index << '\n';
     pbitfield.set(piece_index);
-    if (!t->mbitfield.has(piece_index) && pbitfield.has(piece_index))
-    {
-        required_pieces.push_back(piece_index);
-    }
+    t->piece_manager.add(piece_index);
 }
 
 void peerconnection::recieve_request(const std::string &msg)
@@ -299,76 +350,98 @@ void peerconnection::recieve_request(const std::string &msg)
 
 void peerconnection::request_piece()
 {   
+    if (t->torrent_complete)
+        return;
 
-
-
-    if(t->downloaded_piece_count==t->metadata->total_pieces()) return;
-
-    std::cout <<"requesting now\n";
-    if (curr_idx < required_pieces.size() && mintrested && !pchoking)
+    if (current_piece == -1)
     {
 
-        int pid{-1};
-        {
-            std::lock_guard<std::mutex> guard(t->bitfield_lock);
+        /// assign a piece from piece scheduler else it underway everytime it finished downloading
 
-            if (t->mbitfield.bitfield[required_pieces[curr_idx]].status=piece::to_download)
+        auto p = t->piece_manager.get_piece(pbitfield);
+        {
+            if (p.has_value())
             {
-                t->mbitfield.bitfield[required_pieces[curr_idx]].status=piece::to_download;
-                pid = t->mbitfield.bitfield[required_pieces[curr_idx]].id;
-                t->active_pieces.emplace(required_pieces[curr_idx], activepiece(required_pieces[curr_idx], torr->piece_length()));
-                t->active_pieces.at(required_pieces[curr_idx]).buffer.resize(required_pieces[curr_idx]==t->metadata->total_pieces()-1
-                            ?t->metadata->total_size()-required_pieces[curr_idx]*t->metadata->piece_length()
-                            : t->metadata->piece_length()
-            
-                            );
-            }
-            else if(t->mbitfield.bitfield[required_pieces[curr_idx]].downloading){
-                    pid=t->mbitfield.bitfield[required_pieces[curr_idx]].id;
+                current_piece = p.value();
+                std::cout << current_piece << " requesting now\n";
             }
             else
             {
-                curr_idx++;
+                // retury or just close the connection
+            }
+        }
+    }
+
+    if (!t->torrent_complete && mintrested && !pchoking)
+    {
+
+        {
+            // std::lock_guard<std::mutex> guard(t->bitfield_lock);
+            std::scoped_lock lock(t->bitfield_lock ,t->piece_manager.mtx);
+
+            if (t->piece_manager.status_unlocked(current_piece) == piece::to_download)
+            {
+                t->piece_manager.set_downloading(current_piece);
+                t->active_pieces.emplace(current_piece, activepiece(current_piece, torr->piece_length()));
+                t->active_pieces.at(current_piece).buffer.resize(current_piece == t->metadata->total_pieces() - 1 ? t->metadata->total_size() - current_piece * t->metadata->piece_length() : t->metadata->piece_length()
+
+                );
+            }
+
+            else if (t->piece_manager.status_unlocked(current_piece) == piece::downloading)
+            {
+                current_piece = current_piece;
+            }
+            else
+            {
             }
         }
         // start download of the pid in the buffer i,e send the request message to the peer  then ull get data in return by message recieve_piece;
-        if (pid != -1)
-            if(send_all(sock_fd, req_msg())>0) outstanding_requests++ ;   //okay as its only per thread
-            if(outstanding_requests<5) request_piece();
-    }
+        if (current_piece != -1){
+            pending_messages msg;
+            writer temp;
+            temp.write_str(req_msg());
+            msg.add(temp);
+            {
+            std::lock_guard<std::mutex> guard(send_que_mtx);
+            send_queue.push_back(msg);
+            outstanding_requests++;
+            }
+        }
+            // if (send_all(sock_fd, req_msg()) > 0){
+            //     std::cout<< "request_sent";
+            //     outstanding_requests++; // okay as its only per thread
+            //     std::cout << "outstanding request for piece: "<<current_piece<<" are "<< outstanding_requests<<'\n';
+            // }
 
-    else if (curr_idx >= required_pieces.size())
+        if (outstanding_requests < 5)
+            request_piece();
+    }
+    else
     {
-        // this peer connection is done for reciving
-        // either move it back to peer or make it dormant
+        // close connectionm
     }
 }
 
 std::string peerconnection::req_msg()
 {
-    uint32_t len = htonl(13);
-    uint32_t piece = htonl(required_pieces[curr_idx]);
-    uint32_t begin,blen;
-{
-    std::lock_guard<std::mutex> guard(t->bitfield_lock);
-    uint32_t offset = t->active_pieces.at(required_pieces[curr_idx]).block_idx * BLOCK_LENGTH; // block_idx*block_length
-     begin = htonl(offset);
+    
+    uint32_t begin, blen;
+    {
+        std::lock_guard<std::mutex> guard(t->bitfield_lock);
+        uint32_t offset = t->active_pieces.at(current_piece).block_idx * BLOCK_LENGTH; // block_idx*block_length
+        begin=offset;
+        blen = std::min(BLOCK_LENGTH, static_cast<int>(t->active_pieces.at(current_piece).piece_length - offset));
+    }
 
-    blen = htonl(std::min(BLOCK_LENGTH,static_cast<int>(t->active_pieces.at(required_pieces[curr_idx]).piece_length - offset)));
-}
-    std::vector<char> msg;
-    msg.reserve(17);
+    writer message;
+    message.write_32(13);
+    message.write_8(6);
+    message.write_32(current_piece);
+    message.write_32(begin);
+    message.write_32(blen);
 
-    msg.insert(msg.end(), reinterpret_cast<char *>(&len), reinterpret_cast<char *>(&len) + 4);
-
-    msg.push_back(6); // request ID
-
-    msg.insert(msg.end(), reinterpret_cast<char *>(&piece), reinterpret_cast<char *>(&piece) + 4);
-
-    msg.insert(msg.end(), reinterpret_cast<char *>(&begin), reinterpret_cast<char *>(&begin) + 4);
-
-    msg.insert(msg.end(), reinterpret_cast<char *>(&blen), reinterpret_cast<char *>(&blen) + 4);
-    return std::string(msg.begin(), msg.end());
+    return std::string(message.value().begin(), message.value().end());  //redundant letsee
 }
 
 bool verify_piece(uint32_t piece, const torrent_session *t)
@@ -376,11 +449,13 @@ bool verify_piece(uint32_t piece, const torrent_session *t)
     std::string expected_hash = t->metadata->sha1_piece(piece);
 
     std::string obtained_hash = t->active_pieces.at(piece).hash();
-    
+
     if (expected_hash == obtained_hash)
         return true;
     return false;
 }
+
+
 
 void peerconnection::recieve_peice(const std::string &msg)
 {
@@ -388,52 +463,71 @@ void peerconnection::recieve_peice(const std::string &msg)
     outstanding_requests--;
 
     uint32_t piece, begin;
-    std::cout<< "reciving_piece ";
+    std::cout << "reciving_piece ";
     std::memcpy(&piece, msg.data() + 1, 4);
     std::memcpy(&begin, msg.data() + 5, 4);
 
     piece = ntohl(piece);
     begin = ntohl(begin);
-    auto &ap=t->active_pieces.at(piece);
-    std::cout <<piece;
-
+    auto &ap = t->active_pieces.at(piece);
+    std::cout << piece;
+    std::cout<<"reciving piece:" <<piece << "from: "<<begin<<'\n';
     memcpy(ap.buffer.data() + begin, msg.data() + 9, msg.length() - 9);
 
-    ap.blocks_recieved[ap.block_idx++] = true;
+    ap.blocks_recieved[ap.block_idx++] = true; // asuming the replies in order aswell and not out of order     implement a block scheduler to be robust but i am not free for all that
     if (ap.block_idx == ap.blocks_recieved.size())
     {
         if (verify_piece(piece, t))
         {
-            // move the index
-            curr_idx++;
             // write it to its file
-            // write_to_file(piece,t,ap.buffer);//to be implemented
-            t->filemanager.write_piece(piece,ap.buffer);
-
+            t->filemanager.write_piece(piece, ap.buffer);
+            ap.verified = true;
+            
+            // update the original beitfield and erase the piece from
             {
-                std::lock_guard<std::mutex> guard(t->bitfield_lock);
-                t->mbitfield.bitfield[piece].status=piece::downloaded;
+                // std::lock_guard<std::mutex> guard(t->bitfield_lock);
+                std::scoped_lock lock(t->bitfield_lock,t->piece_manager.mtx);
+                t->piece_manager.set_mbitfield_unlocked(piece);
+                t->downloaded_piece_count++;
+                if(t->downloaded_piece_count==t->metadata->total_pieces()) t->torrent_complete=true;
                 // flush the piece related variables back to default or just destroy the active piece
                 t->active_pieces.erase(piece);
-                std::cout <<"recieved_piece:"<<piece<<'\n';
+                std::cout << "recieved_piece:" << piece << '\n';
             }
-            request_piece();
-            // begin to download new one
         }
         else
         {
-            t->active_pieces.erase(piece);
+            // remove it from active piece free the memory from downloading to to_download
+            std::scoped_lock lock(t->bitfield_lock,t->piece_manager.mtx);
 
-            t->active_pieces.emplace(piece, activepiece(piece, torr->piece_length()));
+            t->active_pieces.erase(piece);
+            t->piece_manager.unset_bitfield_unlocked(piece);
+            current_piece=-1;
         }
+
+        // auto p = t->piece_manager.get_piece(pbitfield);
+        // {
+        //     if (p.has_value())
+        //     {
+        //         current_piece = p.value();
+        //     }
+        //     else
+        //     {
+        //         // retury or just close the connection
+        //     }
+        // }
     }
-    else
-    {
-        request_piece();
-    }
+
+    request_piece();
 }
 
 void peerconnection::recieve_cancel(const std::string &msg)
 {
     return;
+}
+
+
+
+void flush_send_buffer(){
+    
 }

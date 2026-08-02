@@ -33,8 +33,9 @@ class activepiece{
         std::vector<char> buffer;
         std::vector<bool> blocks_recieved;
         int block_idx{0};
+        bool verified{false};
 
-        std::string hash() const {
+        std::string hash() const {     
                 return sha1_hash(std::string (buffer.begin(),buffer.end()));
             }
 
@@ -47,11 +48,13 @@ class piecemanager{
         piecemanager(uint32_t piece_count){
             mbitfield.bitfield.resize(piece_count);
         }
+        // piecemanager(){}
 
         std::mutex mtx;
+        bit_f mbitfield;
 
 
-
+        
         //will be used by perrconnection only 
         void add(const uint32_t piece_id){
             std::lock_guard<std::mutex> guard(mtx);
@@ -62,6 +65,9 @@ class piecemanager{
              mbitfield.bitfield[piece_id].frequency++;
             scheduler.insert({{mbitfield.bitfield[piece_id].frequency,piece_id}});
         }
+
+        
+
 
         void decrease(const uint32_t piece_id){
             std::lock_guard<std::mutex> guard(mtx);
@@ -78,8 +84,9 @@ class piecemanager{
                 uint32_t piece_idx=it->second;
                 if(mbitfield.bitfield[piece_idx].status==piece::to_download && 
                     pbitfield.has(piece_idx)){
-                        return piece_idx;
+                        
                         mbitfield.bitfield[piece_idx].status=piece::downloading;
+                        return piece_idx;
                     }
             }
             return std::nullopt; 
@@ -96,12 +103,71 @@ class piecemanager{
             mbitfield.unset(piece_id);
         }
         
+        int status(uint32_t piece_idx){
+            std::lock_guard<std::mutex> guard(mtx);
+            return mbitfield.bitfield[piece_idx].status;
+        }
+
+        void set_downloading(uint32_t piece_idx){
+            std::lock_guard<std::mutex> guard(mtx);
+            mbitfield.bitfield[piece_idx].status=piece::downloading;
+        }
+
+
+        //will be used by perrconnection only 
+        void add_unlocked(const uint32_t piece_id){
+            if(scheduler.count({mbitfield.bitfield[piece_id].frequency,piece_id})){
+                scheduler.erase({mbitfield.bitfield[piece_id].frequency,piece_id});
+            }
+             mbitfield.bitfield[piece_id].frequency++;
+            scheduler.insert({{mbitfield.bitfield[piece_id].frequency,piece_id}});
+        }
+
+        void decrease_unlocked(const uint32_t piece_id){
+            if(scheduler.count({mbitfield.bitfield[piece_id].frequency,piece_id})){
+                scheduler.erase({mbitfield.bitfield[piece_id].frequency,piece_id});
+               mbitfield.bitfield[piece_id].frequency--;
+                scheduler.insert({mbitfield.bitfield[piece_id].frequency,piece_id});
+            }
+        }
+
+       std::optional<uint32_t> get_piece_unlocked(bit_f& pbitfield){
+            for(auto it=scheduler.begin();it!=scheduler.end(); it++){
+                uint32_t piece_idx=it->second;
+                if(mbitfield.bitfield[piece_idx].status==piece::to_download && 
+                    pbitfield.has(piece_idx)){
+                        
+                        mbitfield.bitfield[piece_idx].status=piece::downloading; // Note: this is unreachable in the original code too
+                        return piece_idx;
+                    }
+            }
+            return std::nullopt; 
+        }
+
+        //used at the start of the program and to change the status ofbitfield maybe on resume option
+        void set_mbitfield_unlocked(uint32_t piece_id){
+            mbitfield.set(piece_id);
+        }
+        
+        void unset_bitfield_unlocked(uint32_t piece_id){
+            mbitfield.unset(piece_id);
+        }
+        
+        int status_unlocked(uint32_t piece_idx){
+            return mbitfield.bitfield[piece_idx].status;
+        }
+
+        void set_downloading_unlocked(uint32_t piece_idx){
+            mbitfield.bitfield[piece_idx].status=piece::downloading;
+        }
+
+
 
     
     private:
         std::set<std::pair<uint32_t ,uint32_t>> scheduler;    //<frequency , piece_id>
-        bit_f mbitfield;
         
+         
 
 
 };
@@ -118,6 +184,10 @@ class piece_scheduler{
     //all i need is to increase and decrease the piece frequency everytime i parse a have / bit field message
     //so who owns this scheduler : torrent_session (fs) 
     //i can extract the top n ppieces from scheduler and check if my peer has them and assign the first one push the peer as downloading adn this way i do not make it logn for the cost of memory 
+
+    
+
+
 
 
 

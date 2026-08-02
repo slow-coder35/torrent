@@ -27,6 +27,22 @@ class  piece{
 };
 
 
+enum CommandType{
+        disconnect,
+        add,
+        shutdown_worker
+};
+
+enum class ConnectStatus {
+    CONNECTED,      // connect() returned 0
+    IN_PROGRESS,    // errno == EINPROGRESS
+    FAILED
+};
+
+struct ConnectResult {
+    ConnectStatus status;
+    int sockfd;
+};
 
 
 
@@ -68,6 +84,7 @@ class file{
 };
 
 
+
 class writer{
     public:
         writer(){}
@@ -92,6 +109,10 @@ class writer{
             data.insert(data.end(),p,p+2);
         }
 
+        void write_8(uint8_t i){     //does not provide network byte ordering
+            data.push_back(i);
+        }
+
         const std::vector<uint8_t>& value(){
             return data;
         }
@@ -106,6 +127,16 @@ class writer{
     private:
         std::vector<uint8_t> data;
 
+};
+struct pending_messages {
+    std::string process{""};
+    std::vector<uint8_t> data;
+    int sent=0;
+
+    void add(writer& msg){
+        data=msg.value();
+    }
+    
 };
 
 
