@@ -48,13 +48,26 @@ public:
             process_commands();
 
             std::array<epoll_event, MAX_EVENTS> events;
-            int n = epoll_wait(epoll_fd, events.data(), events.size(), 1000);
+            int n = epoll_wait(epoll_fd, events.data(), events.size(), 1);
 
             for (int i = 0; i < n; i++)
             {
                 int sock_fd = events[i].data.fd;
                 auto it = connected_peers.find(sock_fd);
+                
+                if(it==connected_peers.end()) {
+                    // a poissibility rn have to figure it out
+                    continue;
+                }
+
+                if(events[i].events & EPOLLOUT){
+                    it->second->flush_send_buffer();
+                }
+
+                if(events[i].events & EPOLLIN){
                 it->second->on_recv();
+                }
+
             }
         }
     }
@@ -91,7 +104,8 @@ private:
     bool running{true};
 
     void process_commands()
-    {
+    {   
+        
         while (!commands.empty())
         {   
 
@@ -101,12 +115,15 @@ private:
             {
             case (CommandType::add):
             {
-
+                // std::cout<<" peer recieved in worker\n";
+                
                 epoll_event ev{};
-                ev.events = EPOLLIN;
+                ev.events = EPOLLIN | EPOLLOUT;
                 ev.data.fd = current.peer_connection->sockfd();
+                
 
-                epoll_ctl(epoll_fd, EPOLL_CTL_ADD, current.peer_connection->sockfd(), &ev);
+                int ret=epoll_ctl(epoll_fd, EPOLL_CTL_ADD, current.peer_connection->sockfd(), &ev);
+                if(ret==-1) perror("epoll_ctl\n");
                 connected_peers.insert({current.peer_connection->sockfd(), std::move(current.peer_connection)});
                 break;
             }

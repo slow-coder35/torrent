@@ -54,7 +54,7 @@ class torrent_session{
         }
 
 
-
+        std::atomic<uint64_t> downloaded_bytes{0};
         uint32_t downloaded_num{0};  //can change logic for it when i add pause stop force start maybe a function to get the count when required or sstarting a new seession
         
         std::atomic<bool> torrent_complete=false;
@@ -64,7 +64,7 @@ class torrent_session{
         std::mutex bitfield_lock;    //rename to active pieces others are not needed anymore 
 
         std::atomic<uint32_t> downloaded_piece_count{0};
-        
+        std::mutex active_pieces_lock;
         std::map <int,activepiece> active_pieces;
         std::shared_ptr<torrent> metadata;
         std::string peer_id;
@@ -86,6 +86,7 @@ class torrent_session{
         epoll_fd=epoll_create1(0);
         worker0.start();
         worker1.start();
+        std::thread monitor_thread(&torrent_session::speed_monitor,this);
 
         get_connections1();
    
@@ -129,31 +130,48 @@ class torrent_session{
             auto p = std::make_unique<peerconnection>(client.peer_list[i], metadata, t);
             p->connect();
 
-
-
-
-            
-
-
             epoll_event ev{};
             if(p->status==ConnectStatus::FAILED){
                 continue;
             }
             else if(p->status==ConnectStatus::IN_PROGRESS){
                 ev.events=EPOLLOUT;
-            }
-            else{
-            p->send_handshake(t->peer_id);
-            ev.events=EPOLLIN;
-            }
-            
-            ev.data.fd=p->sockfd();
+                ev.data.fd=p->sockfd();
 
             //add to my watch list and create a array for epoll aswell 
             epoll_ctl(epoll_fd,EPOLL_CTL_ADD,p->sockfd(),&ev);
             peer_connections.emplace(p->sockfd(),std::move(p));
+            }
+
+
+            else{
+            p->send_handshake(t->peer_id);
+
+                            command current;
+                            current.type = CommandType::add;
+                            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, p->sockfd(), nullptr);
+                            current.peer_connection = std::move(p);
+                            std::cout << " peer sent to worker\n";
+
+                            if (worker0.count() == worker1.count() && worker1.count() == MAX_CONNECTIONS_PER_THREAD)
+                            {
+                                // prune some inactive threads
+                            }
+
+                            if (worker0.count() <= worker1.count())
+                            {
+                                worker0.add_to_queue(std::move(current));
+                            }
+                            else
+                            {
+                                worker1.add_to_queue(std::move(current));
+                            }
+                           
+                            
+            }
 
         }
+
         client_idx+=std::min(100,static_cast<int>(client.peer_list.size())-client_idx+1);
         // std::array<epoll_event,100> events;   //for now lets go with vectors
         
@@ -175,26 +193,21 @@ class torrent_session{
                     continue;
                 }
             
-                //succeded atp now add with epollin
+                //succeded atp now add with epollin the tcp syn ack is done here 
 
                 it->second->status=ConnectStatus::CONNECTED;
                 it->second->send_handshake(t->peer_id);
-                epoll_event ev{};
-                ev.data.fd=it->second->sockfd();
-                ev.events=EPOLLIN;
-                epoll_ctl(epoll_fd,EPOLL_CTL_MOD,fd,&ev);
-                continue;
-                
             }
 
 
-            if(it!=peer_connections.end() && it->second->recieve_handshake()){
+            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, it->second->sockfd(), nullptr);
                 auto peer=std::move(it->second);
                 peer_connections.erase(it);
 
                 command current;
                 current.type = CommandType::add;
                 current.peer_connection = std::move(peer);
+                std::cout << " peer sent to worker\n";
 
                 if(worker0.count()==worker1.count() && worker1.count()==MAX_CONNECTIONS_PER_THREAD){
                     //prune some inactive threads 
@@ -206,7 +219,7 @@ class torrent_session{
                 else{
                     worker1.add_to_queue(std::move(current));
                 }
-            }
+            
         }
     }
 
@@ -215,12 +228,7 @@ class torrent_session{
 
 
 
-    // void start_communication(){                            //till handshake
-    //     for (auto& connection:peer_connections){
-    //         threads.emplace_back(&peerconnection::communication,&connection);
-    //         std::cout << "communication started with "<< connection.pinfo().ip<<'\n';
-    //     }
-    // }
+
 
     void wait_to_finish(){        
         
@@ -239,7 +247,7 @@ class torrent_session{
     //now pass the buffer once over to write file from peerconnection for every request 
 
     
-    
+    std::atomic<int> total_downloaded_pieces{0};
     private:
     
     std::unordered_map<int,std::unique_ptr<peerconnection>> peer_connections;
@@ -250,7 +258,7 @@ class torrent_session{
     worker worker0,worker1;
     int count0{0},count1{0};
     int epoll_fd;
-    int total_downloaded_pieces{0};
+    
 
 
     int next_client_index=0;
@@ -258,20 +266,35 @@ class torrent_session{
 
 
 
+    void speed_monitor()
+{
+    uint64_t previous = 0;
+
+    while (!t->torrent_complete)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        uint64_t current =
+            t->downloaded_bytes.load(std::memory_order_relaxed);
+
+        uint64_t delta = current - previous;
+        previous = current;
+
+        double mibps = delta / (1024.0 * 1024.0);
+        double mbps  = delta * 8.0 / 1'000'000.0;
+
+        std::clog << "Download: "
+                  << mibps << " MiB/s ("
+                  << mbps << " Mbps)\n";
+    }
+}
+
+
+
   
 
 
 };
-
-
-
-
-
-
-
-
-
-
 
 
 

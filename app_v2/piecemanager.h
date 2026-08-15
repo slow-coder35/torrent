@@ -10,29 +10,78 @@
 #include <queue>
 #include <set>
 #include <mutex>
+#include<deque>
 
 
 // #include "peerconnection.h"
 
 
 
+    enum status{
+        to_request,
+        requested,
+        recieved
+    };
+
+    struct blockinfo{
+        status stat{to_request};
+    };
+
+class blockmanager{
+    public:
+    blockmanager(uint32_t piece_size,uint32_t piece_id):piece_id(piece_id){
+        bitfield.resize((piece_size-1+BLOCK_LENGTH)/BLOCK_LENGTH);
+    }
+    // std::atomic<int> block_count{0};
+    bool complete{false};
+    bool asked_all{false};
+
+   int get_next_block(){
+        //just a queue for now which is next 
+        for(int i=0;i<bitfield.size();i++){
+            if(bitfield[i].stat==status::to_request){
+                bitfield[i].stat=status::requested;
+            return i;
+            }
+        }
+        asked_all=true;
+        return -1;
+    }
+
+
+    // int get_next_block(){
+
+    // }
+
+    void mark_block(int i){
+        bitfield[i].stat=status::recieved;
+        // if(block_count==bitfield.size()) complete=true;
+    }
+
+
+    
+    private:
+
+        uint32_t piece_id;
+        std::vector<blockinfo> bitfield{status::to_request};
+    
+};
 
 
 
 class activepiece{
     public:
-        activepiece(uint32_t id,uint32_t piece_length):id(id),piece_length(piece_length){
-            block_count = (piece_length + BLOCK_LENGTH - 1) / BLOCK_LENGTH;
-            blocks_recieved.resize(block_count);
+        activepiece(uint32_t id,uint32_t piece_length):id(id),block_manager(piece_length,id),piece_length(piece_length){
             buffer.resize(piece_length);
         }
         // std::mutex piece_mutex;  not required rn as one piece handeld be one thread but in fufture if blocks can be requested to differnt peers it will be necessary
         uint32_t id;
-        uint32_t block_count;
+        blockmanager block_manager;
+
         uint32_t piece_length;//lonly changes if its the last block of the piece  request 
         std::vector<char> buffer;
-        std::vector<bool> blocks_recieved;
-        int block_idx{0};
+        // std::vector<bool> blocks_recieved;
+        // int block_idx{0};
         bool verified{false};
 
         std::string hash() const {     
@@ -43,15 +92,33 @@ class activepiece{
 
 
 
+
+
+
+
+
 class piecemanager{
     public:
-        piecemanager(uint32_t piece_count){
+        piecemanager(uint32_t piece_count,uint32_t piece_length){
             mbitfield.bitfield.resize(piece_count);
         }
         // piecemanager(){}
 
         std::mutex mtx;
+        std::mutex active_piece_mtx;
         bit_f mbitfield;
+        uint32_t piece_lengt`
+        
+        std::unordered_map<int , activepiece> active_pieces;
+
+        //double vector get a piece and ask the next block maintain max of 20 pieces active 
+
+        int active_pieces_count=0;
+
+        blockmanager block_manager;
+
+
+        
 
 
         
@@ -78,41 +145,6 @@ class piecemanager{
             }
         }
 
-       std::optional<uint32_t> get_piece(bit_f& pbitfield){
-            std::lock_guard<std::mutex> guard(mtx);
-            for(auto it=scheduler.begin();it!=scheduler.end(); it++){
-                uint32_t piece_idx=it->second;
-                if(mbitfield.bitfield[piece_idx].status==piece::to_download && 
-                    pbitfield.has(piece_idx)){
-                        
-                        mbitfield.bitfield[piece_idx].status=piece::downloading;
-                        return piece_idx;
-                    }
-            }
-            return std::nullopt; 
-        }
-
-
-        //used at the start of the program and to change the status ofbitfield maybe on resume option
-        void set_mbitfield(uint32_t piece_id){
-            std::lock_guard<std::mutex> guard(mtx);
-            mbitfield.set(piece_id);
-        }
-        void unset_bitfield(uint32_t piece_id){
-            std::lock_guard<std::mutex> guard(mtx);
-            mbitfield.unset(piece_id);
-        }
-        
-        int status(uint32_t piece_idx){
-            std::lock_guard<std::mutex> guard(mtx);
-            return mbitfield.bitfield[piece_idx].status;
-        }
-
-        void set_downloading(uint32_t piece_idx){
-            std::lock_guard<std::mutex> guard(mtx);
-            mbitfield.bitfield[piece_idx].status=piece::downloading;
-        }
-
 
         //will be used by perrconnection only 
         void add_unlocked(const uint32_t piece_id){
@@ -137,7 +169,7 @@ class piecemanager{
                 if(mbitfield.bitfield[piece_idx].status==piece::to_download && 
                     pbitfield.has(piece_idx)){
                         
-                        mbitfield.bitfield[piece_idx].status=piece::downloading; // Note: this is unreachable in the original code too
+                        // mbitfield.bitfield[piece_idx].status=piece::downloading; // Note: this is unreachable in the original code too
                         return piece_idx;
                     }
             }
@@ -167,31 +199,51 @@ class piecemanager{
     private:
         std::set<std::pair<uint32_t ,uint32_t>> scheduler;    //<frequency , piece_id>
         
-         
-
-
-};
-
-
-
-class piece_scheduler{
-
-    //search the bitfield maintain an array of pieces which have corresponsding peer and the frequesncy of the required pieces
-    //on calling piece_scheduler it should return me the piece that has to be downloaded by that particular peer and mark it downloading in the bit field 
-    //marking can be done by peer aswell on reciving it so a peer just oasks which one next and it gets it piecemanager should handle the required io on bitfield 
-    //this will be nlogn as it takes logn time to inset from queue and the only ones that are inserted are new peer_connections
-    //this will have an array of pieces and thier frequencies and the priorty goes lower frequency to higher frequency 
-    //all i need is to increase and decrease the piece frequency everytime i parse a have / bit field message
-    //so who owns this scheduler : torrent_session (fs) 
-    //i can extract the top n ppieces from scheduler and check if my peer has them and assign the first one push the peer as downloading adn this way i do not make it logn for the cost of memory 
-
     
 
+    int decide_piece( bit_f& pbitfield){
+        for(auto it=scheduler.begin();it!=scheduler.end();it++){
+            for(auto it=scheduler.begin();it!=scheduler.end(); it++){
+                uint32_t piece_idx=it->second;
+                if(mbitfield.bitfield[piece_idx].status==piece::to_download && 
+                    pbitfield.has(piece_idx)){
+                        // mbitfield.bitfield[piece_idx].status=piece::downloading; // Note: this is unreachable in the original code too
+                        return piece_idx;
+                    }
+
+            }
+            return -1;
+
+        }
+    }
+
+    void add_to_active_pieces(uint32_t piece){
+        active_pieces.emplace({piece,activepiece(piece,)});
+    }
+
+
+    void add_to_active_pieces(){
+        
+    }
 
 
 
 
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

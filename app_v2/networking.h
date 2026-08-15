@@ -329,6 +329,8 @@ inline int recv_s(uint32_t sockfd,std::string& reply,int length){
     return recieved_sofar == length ? recieved_sofar : -1;
 }
 
+
+
 inline int send_all(int sockfd, const std::string& data){
     size_t total_sent = 0;
     while(total_sent < data.length()){

@@ -46,6 +46,7 @@ class peerconnection{
         }
 
         void send_handshake(const std::string& self_peer_id);
+        void flush_send_buffer();
 
     private:
         peerinfo p;
@@ -57,15 +58,15 @@ class peerconnection{
 
         bit_f pbitfield;
        
-        long long int current_piece{-1};    //idk about the edge condidtions from implicit conversion of uint32_t to long long int 
+        // long long int current_piece{-1};  //ill come back to this it was pvt for some reason  //idk about the edge condidtions from implicit conversion of uint32_t to long long int 
         //maybe get a flag to piece or not if i encounter that
         torrent_session* t;
         int outstanding_requests{0};
         std::string buf;
-        
+        bool handshake{false};
         std::chrono::milliseconds last_recv{0};
 
-        bool mintrested{false};
+        bool mintrested{true};
         bool pintrested{false};
         bool mchoking{true};
         bool pchoking{true};
@@ -87,7 +88,7 @@ class peerconnection{
     void recieve_peice(const std::string& msg);
     void recieve_cancel(const std::string& msg);
     void process_message(const std::string& msg);
-    void flush_send_buffer();
+   
     
     void request_piece();
     std::string req_msg();
